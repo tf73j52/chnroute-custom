@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""从上游 ruijzhan/chnroute 拉取最新列表，按 custom_ips.txt 二次加工，
+"""从上游 ruijzhan/chnroute 拉取最新列表，按 ips.txt 二次加工，
 产出小写命名、直接写 list=cn 的 cn.rsc / lan.rsc / gfwlist.rsc。
 
 构建阶段统一做三件事：
-  1. 网段去重合并（collapse）：上游段、custom_ips.txt 的段互相包含的只留最大段；
+  1. 网段去重合并（collapse）：上游段、ips.txt 的段互相包含的只留最大段；
   2. cn 与 lan 之间做差集，两个文件写入同一个 cn 列表，不允许有重叠；
   3. 网段按数值排序、域名按层级排序（同一主域的子域聚在一起）。
 """
@@ -91,29 +91,6 @@ def normalize(nets: list) -> list:
     return sorted(merged, key=lambda n: (int(n.network_address), n.prefixlen))
 
 
-def subtract_all(nets: list, excludes: list) -> list:
-    """从 nets 中减去所有 exclude。exclude 必须是某段的子网才能精确相减，
-    部分重叠时保留原段（CIDR 无法表示，强拆会误伤）。"""
-    out = []
-    for net in nets:
-        cur = [net]
-        for ex in excludes:
-            if not any(c.overlaps(ex) for c in cur):
-                continue
-            nxt = []
-            for c in cur:
-                if not c.overlaps(ex):
-                    nxt.append(c)
-                    continue
-                try:
-                    nxt.extend(c.address_exclude(ex))
-                except ValueError:
-                    nxt.append(c)
-            cur = nxt
-        out.extend(cur)
-    return out
-
-
 def build_cn(text: str, custom_ips: list, lan_nets: list) -> tuple:
     """上游 CN.rsc → cn.rsc：改小写、并入自定义段与内网段、去重合并排序。"""
     out = text.replace("list=CN", "list=cn")
@@ -126,16 +103,6 @@ def build_cn(text: str, custom_ips: list, lan_nets: list) -> tuple:
             nets.append(ipaddress.ip_network(raw, strict=False))
         except ValueError:
             print(f"[warn] 忽略无效的自定义段：{raw}", flush=True)
-
-    # 挖洞：custom_exclude.txt 里声明的更精确前缀
-    excluded = []
-    for raw in load_list(ROOT / "custom_exclude.txt"):
-        try:
-            excluded.append(ipaddress.ip_network(raw, strict=False))
-        except ValueError:
-            print(f"[warn] 忽略无效的排除段：{raw}", flush=True)
-    if excluded:
-        nets = subtract_all(nets, excluded)
 
     # 内网段直接并进 cn：路由器只需导入一个文件
     nets.extend(lan_nets)
@@ -234,7 +201,7 @@ def build_gfw(text: str, custom_domains: list) -> tuple:
 
 
 def main() -> None:
-    custom_ips = load_list(ROOT / "custom_ips.txt")
+    custom_ips = load_list(ROOT / "ips.txt")
 
     cn_text = fetch("CN.rsc")
     lan_text = fetch("LAN.rsc")
@@ -251,7 +218,7 @@ def main() -> None:
     lan_nets = to_nets(lan_items)
 
     cn_out, raw_ip, n_ip = build_cn(cn_text, custom_ips, lan_nets)
-    custom_domains = load_list(ROOT / "custom_domains.txt")
+    custom_domains = load_list(ROOT / "domains.txt")
     gfw_out, had_tag, n_domain, n_dropped = build_gfw(gfw_text, custom_domains)
 
     selfcheck(to_nets(re.findall(r'^\s*"([^"]+)"', cn_out, re.M)), n_domain, prev)
@@ -266,7 +233,6 @@ def main() -> None:
         f"upstream_sig: {sig}",
         f"cn_entries: {n_ip} (上游 {raw_ip} + 自定义 {len(custom_ips)} + 内网 {len(lan_nets)}，去重合并后)",
         f"gfw_domains: {n_domain} (上游 + 自定义 {len(custom_domains)}，去重并剔除被父域覆盖的 {n_dropped} 条后)",
-        f"excluded_ranges: {len(load_list(ROOT / 'custom_exclude.txt'))}",
         f"gfw_list_tag_removed: {had_tag}",
     ]
     for name in ("cn.rsc", "gfwlist.rsc"):
