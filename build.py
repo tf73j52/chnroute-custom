@@ -197,7 +197,7 @@ def build_gfw(text: str, custom_domains: list) -> tuple:
         f'/log info "GFW domain list updated with {len(final)} domains"',
         out,
     )
-    return out, "address-list=gfw_list" in text, len(final), n_dropped
+    return out, len(final), n_dropped
 
 
 def main() -> None:
@@ -219,7 +219,7 @@ def main() -> None:
 
     cn_out, raw_ip, n_ip = build_cn(cn_text, custom_ips, lan_nets)
     custom_domains = load_list(ROOT / "domains.txt")
-    gfw_out, had_tag, n_domain, n_dropped = build_gfw(gfw_text, custom_domains)
+    gfw_out, n_domain, n_dropped = build_gfw(gfw_text, custom_domains)
 
     selfcheck(to_nets(re.findall(r'^\s*"([^"]+)"', cn_out, re.M)), n_domain, prev)
 
@@ -233,7 +233,6 @@ def main() -> None:
         f"upstream_sig: {sig}",
         f"cn_entries: {n_ip} (上游 {raw_ip} + 自定义 {len(custom_ips)} + 内网 {len(lan_nets)}，去重合并后)",
         f"gfw_domains: {n_domain} (上游 + 自定义 {len(custom_domains)}，去重并剔除被父域覆盖的 {n_dropped} 条后)",
-        f"gfw_list_tag_removed: {had_tag}",
     ]
     for name in ("cn.rsc", "gfwlist.rsc"):
         data = (ROOT / name).read_bytes()

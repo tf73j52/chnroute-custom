@@ -7,7 +7,7 @@
 | 产物 | 说明 |
 |---|---|
 | `cn.rsc` | 上游国内段 + `ips.txt` 里的 26 个段 + **14 条内网段**，**列表名直接是小写 `cn`**，文件自带清空逻辑 |
-| `gfwlist.rsc` | 上游 gfw 域名列表 + `domains.txt` 的自定义域名，**已去掉 `address-list=gfw_list` 标签**，被父域覆盖的多余子域自动剔除 |
+| `gfwlist.rsc` | 上游 gfw 域名列表 + `domains.txt` 的自定义域名，被父域覆盖的多余子域自动剔除 |
 
 内网段（原来的 `lan.rsc`）已合并进 `cn.rsc`，不再单独产出文件。
 
@@ -61,14 +61,6 @@ https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/gfwlist.rsc
 - `cn.rsc` 自身第一行就会清空旧的 cn 列表，所以脚本里不需要额外的 `remove [find list=cn]`；
 - 内网段已经在 `cn.rsc` 里了，所以数组里**没有 `lan.rsc`**，仓库里也**没有这个文件了**；
 - 如果还在用旧脚本（数组里三个文件），必须先把 `"lan.rsc"` 从数组里删掉，否则会去下载一个不存在的文件，导致后面的 `gfwlist.rsc` 不再导入。
-
-还没清理历史 `gfw_list` 条目的话，末尾再加一行：
-
-```routeros
-/ip firewall address-list remove [find list=gfw_list]
-```
-
-确认列表已空后，把这行也删掉。
 
 ## 三道保险
 
