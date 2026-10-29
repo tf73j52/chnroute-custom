@@ -2,8 +2,9 @@ name: daily-build
 
 on:
   schedule:
-    # 每天 UTC 03:00（北京时间 11:00）自动执行
-    - cron: '0 3 * * *'
+    # 每天 UTC 16:00（北京时间 次日 00:00）自动执行
+    # 注意：GitHub 不保证准点，高峰期可能晚几分钟
+    - cron: '0 16 * * *'
   workflow_dispatch: # 允许手动点一下立即构建
   push:
     branches: [main]
