@@ -16,11 +16,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 UPSTREAM = "https://raw.githubusercontent.com/ruijzhan/chnroute/master"
+# 先走快的镜像，raw 源只当备胎（实测正门经常超时，白等两分钟）
 MIRRORS = [
-    "https://raw.githubusercontent.com/ruijzhan/chnroute/master",
     "https://cdn.jsdelivr.net/gh/ruijzhan/chnroute@master",
+    "https://raw.githubusercontent.com/ruijzhan/chnroute/master",
 ]
 TIMEOUT = 120
+# 内网段已并入 cn.rsc，lan.rsc 只留一条日志占位，保证旧脚本导入时不报错、不中断
+LAN_PLACEHOLDER = (
+    '/log info "lan.rsc 已并入 cn.rsc，此文件为空，仅为兼容旧脚本，可安全忽略"\n'
+)
 # 域名排序方式：hierarchy（按层级，同主域聚一起） / alpha（纯字典序）
 DOMAIN_SORT = "hierarchy"
 ROOT = Path(__file__).resolve().parent
@@ -113,7 +118,7 @@ def subtract_all(nets: list, excludes: list) -> list:
 
 
 def build_cn(text: str, custom_ips: list, lan_nets: list) -> tuple:
-    """上游 CN.rsc → cn.rsc：改小写、并入自定义段、剔除 lan 段、去重合并排序。"""
+    """上游 CN.rsc → cn.rsc：改小写、并入自定义段与内网段、去重合并排序。"""
     out = text.replace("list=CN", "list=cn")
     lines, start, end, items = parse_block(out, "ipList")
     nets = to_nets(items)
@@ -135,19 +140,11 @@ def build_cn(text: str, custom_ips: list, lan_nets: list) -> tuple:
     if excluded:
         nets = subtract_all(nets, excluded)
 
-    # 剔除 lan 段：lan.rsc 会再写一遍，两边不能重复
-    nets = subtract_all(nets, lan_nets)
+    # 内网段直接并进 cn：路由器只需导入一个文件
+    nets.extend(lan_nets)
     final = normalize(nets)
 
     return render(lines, start, end, [str(n) for n in final]), raw_count, len(final)
-
-
-def build_lan(text: str) -> tuple:
-    """上游 LAN.rsc → lan.rsc：写进 cn 列表，去重合并排序。"""
-    out = text.replace("list=LAN", "list=cn")
-    lines, start, end, items = parse_block(out, "lanIps")
-    final = normalize(to_nets(items))
-    return render(lines, start, end, [str(n) for n in final]), len(final)
 
 
 def sort_domains(domains: list) -> list:
@@ -178,23 +175,22 @@ def main() -> None:
     custom_ips = load_list(ROOT / "custom_ips.txt")
 
     lan_text = fetch("LAN.rsc")
-    lan_out, n_lan = build_lan(lan_text)
-    _, _, _, lan_items = parse_block(lan_out, "lanIps")
+    _, _, _, lan_items = parse_block(lan_text, "lanIps")
     lan_nets = to_nets(lan_items)
 
     cn_out, raw_ip, n_ip = build_cn(fetch("CN.rsc"), custom_ips, lan_nets)
     gfw_out, had_tag, n_domain = build_gfw(fetch("gfwlist_v7.rsc"))
 
     (ROOT / "cn.rsc").write_text(cn_out, encoding="utf-8")
-    (ROOT / "lan.rsc").write_text(lan_out, encoding="utf-8")
+    (ROOT / "lan.rsc").write_text(LAN_PLACEHOLDER, encoding="utf-8")
     (ROOT / "gfwlist.rsc").write_text(gfw_out, encoding="utf-8")
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     meta = [
         f"build_time: {now}",
         f"upstream: {UPSTREAM}",
-        f"cn_entries: {n_ip} (上游 {raw_ip} + 自定义 {len(custom_ips)}，去重合并后)",
-        f"lan_entries: {n_lan}",
+        f"cn_entries: {n_ip} (上游 {raw_ip} + 自定义 {len(custom_ips)} + 内网 {len(lan_nets)}，去重合并后)",
+        f"lan_entries: 0 (内网段已并入 cn.rsc，lan.rsc 为空占位)",
         f"gfw_domains: {n_domain}",
         f"excluded_ranges: {len(load_list(ROOT / 'custom_exclude.txt'))}",
         f"gfw_list_tag_removed: {had_tag}",
