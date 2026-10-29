@@ -1,13 +1,13 @@
 # chnroute-custom
 
-每天 UTC 03:00 自动从上游 [ruijzhan/chnroute](https://github.com/ruijzhan/chnroute) 拉取最新列表，按本仓库的定制项二次加工，产出可直接被 RouterOS 拉取的 `cn.rsc` / `lan.rsc` / `gfwlist.rsc`。
+每天北京时间 00:00（UTC 16:00）自动从上游 [ruijzhan/chnroute](https://github.com/ruijzhan/chnroute) 拉取最新列表，按本仓库的定制项二次加工，产出可直接被 RouterOS 拉取的 `cn.rsc` / `gfwlist.rsc`。
 
 ## 产物特性（定制已烧进文件，RouterOS 端无需再做转换）
 
 | 产物 | 说明 |
 |---|---|
-| `cn.rsc` | 上游国内段 + `custom_ips.txt` 里的 26 个段，**列表名直接是小写 `cn`**，文件自带清空逻辑 |
-| `lan.rsc` | 内网段，**同样直接写入 `cn`**，不再生成 LAN 列表 |
+| `cn.rsc` | 上游国内段 + `custom_ips.txt` 里的 26 个段 + **14 条内网段**，**列表名直接是小写 `cn`**，文件自带清空逻辑 |
+| `lan.rsc` | **空占位文件**。内网段已并进 `cn.rsc`，保留它只为兼容旧脚本，**新脚本不用拉它** |
 | `gfwlist.rsc` | 上游 gfw 域名列表，**已去掉 `address-list=gfw_list` 标签**，不追加任何自定义域名 |
 
 因为列表名已经是 `cn`，RouterOS 脚本里不再需要 `CN`→`cn`、`LAN`→`cn` 的改名循环。
@@ -20,7 +20,7 @@
 |---|---|
 | **网段去重合并** | 上游段与自定义段互相包含的只留最大的那条。例如 `17.0.0.0/8`（Apple）会吃掉上游 190 条零散的 `17.x` 小段，最终只剩 1 条 |
 | **相邻段聚合** | 能合成一条的不拆开写，例如 `43.160.0.0/16` + `43.161.0.0/16` 合成 `43.160.0.0/15` |
-| **cn 与 lan 互斥** | 两个文件都写进同一个 `cn` 列表，构建时先做差集，保证两边没有任何重叠 |
+| **内网段并进 cn** | lan 的 14 条内网段直接合并进 `cn.rsc`，去重后一起排序，路由器只导入一个文件就够了 |
 | **网段排序** | 按网段起始地址的数值从小到大排 |
 | **域名排序** | 去重后按层级排，同一主域下的子域聚在一起（`1-apple.com.tw` 紧挨 `powerapple.com` 那组）；想改成纯字典序，把 `build.py` 里的 `DOMAIN_SORT` 改成 `"alpha"` |
 
@@ -67,15 +67,22 @@ https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/gfwlist.rsc
 ```routeros
 :global dnsserver "proxy"
 /system logging disable [find]
-:foreach f in={"cn.rsc";"lan.rsc";"gfwlist.rsc"} do={ /tool fetch url=("https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/" . $f) dst-path=$f duration=20s check-certificate=no; /import $f; /file remove [find name=$f] }
-/ip firewall address-list remove [find list=gfw_list]
+:foreach f in={"cn.rsc";"gfwlist.rsc"} do={ /tool fetch url=("https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/" . $f) dst-path=$f duration=20s check-certificate=no; /import $f; /file remove [find name=$f] }
 ```
 
 说明：
 
 - `cn.rsc` 自身第一行就会清空旧的 cn 列表，所以脚本里不需要额外的 `remove [find list=cn]`；
-- 导入顺序必须是 cn → lan（数组顺序即导入顺序），lan 会把内网段追加进同一个 cn 列表；
-- 最后那行只用于清理切换方案前遗留的历史 gfw_list 条目，**确认列表已空后可删掉**，那时脚本只剩三行。
+- 内网段已经在 `cn.rsc` 里了，所以数组里**没有 `lan.rsc`**；
+- 如果你还在用旧脚本（数组里有 `lan.rsc`），也**不会出错**——`lan.rsc` 现在只是空文件，导入它什么都不做。什么时候改成新版都行，不用卡时间。
+
+还没清理历史 `gfw_list` 条目的话，末尾再加一行：
+
+```routeros
+/ip firewall address-list remove [find list=gfw_list]
+```
+
+确认列表已空后，把这行也删掉。
 
 ## 手动触发
 
