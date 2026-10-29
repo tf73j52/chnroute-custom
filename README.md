@@ -18,9 +18,9 @@
 ## 产物地址
 
 ```
-https://cdn.jsdelivr.net/gh/<你的用户名>/<仓库名>@main/CN.rsc
-https://cdn.jsdelivr.net/gh/<你的用户名>/<仓库名>@main/LAN.rsc
-https://cdn.jsdelivr.net/gh/<你的用户名>/<仓库名>@main/gfwlist_v7.rsc
+https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/CN.rsc
+https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/LAN.rsc
+https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/gfwlist_v7.rsc
 ```
 
 `VERSION.txt` 里有构建时间、上游地址、各文件大小与 sha1，可以用来确认拉到的是不是最新。
@@ -31,7 +31,7 @@ https://cdn.jsdelivr.net/gh/<你的用户名>/<仓库名>@main/gfwlist_v7.rsc
 :global dnsserver "proxy"
 /system logging disable [find]
 :foreach f in={"CN.rsc";"LAN.rsc";"gfwlist_v7.rsc"} do={
-  /tool fetch url=("https://cdn.jsdelivr.net/gh/<你的用户名>/<仓库名>@main/" . $f) dst-path=$f duration=20s check-certificate=no
+  /tool fetch url=("https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/" . $f) dst-path=$f duration=20s check-certificate=no
   /import $f
   /file remove [find name=$f]
 }
