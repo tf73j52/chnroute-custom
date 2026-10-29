@@ -1,4 +1,4 @@
-build_time: 2026-10-29 04:21:57 UTC
+build_time: 2026-10-29 04:23:26 UTC
 upstream: https://raw.githubusercontent.com/ruijzhan/chnroute/master
 custom_ips_added: 26
 gfw_list_tag_removed: True
