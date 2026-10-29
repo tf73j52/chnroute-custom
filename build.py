@@ -192,6 +192,20 @@ def selfcheck(final: list, n_domain: int, prev: dict) -> None:
     print(f"自检通过：cn {len(final)} 条，域名 {n_domain} 个", flush=True)
 
 
+def strip_covered(domains: list) -> tuple:
+    """去掉被父域覆盖的子域：每条都带 match-subdomain=yes，
+    表里已有 wordpress.com 时，xxx.wordpress.com 就是多余的。返回 (剩余列表, 剔除数)。"""
+    domset = set(domains)
+    kept, dropped = [], 0
+    for d in domains:
+        parts = d.split(".")
+        if any(".".join(parts[i:]) in domset for i in range(1, len(parts) - 1)):
+            dropped += 1
+        else:
+            kept.append(d)
+    return kept, dropped
+
+
 def sort_domains(domains: list) -> list:
     """域名去重 + 排序。
     hierarchy（默认）：按域名层级排，同一主域下的子域聚在一起，同一后缀归为一组。
@@ -202,18 +216,21 @@ def sort_domains(domains: list) -> list:
     return sorted(uniq, key=lambda d: (tuple(reversed(d.split("."))), d))
 
 
-def build_gfw(text: str) -> tuple:
-    """上游 gfwlist_v7.rsc → gfwlist.rsc：去 gfw_list 标签，域名排序。"""
+def build_gfw(text: str, custom_domains: list) -> tuple:
+    """上游 gfwlist_v7.rsc → gfwlist.rsc：并入自定义域名、去 gfw_list 标签、
+    去重、剔除被父域覆盖的子域、排序。"""
     cleaned = re.sub(r"\saddress-list=gfw_list", "", text)
     lines, start, end, domains = parse_block(cleaned, "domainList")
-    final = sort_domains(d.strip().lower() for d in domains)
+    all_d = [d.strip().lower() for d in domains] + [d.strip().lower() for d in custom_domains]
+    final, n_dropped = strip_covered(sorted(set(all_d)))
+    final = sort_domains(final)
     out = render(lines, start, end, final)
     out = re.sub(
         r'/log info "GFW domain list updated with \d+ domains"',
         f'/log info "GFW domain list updated with {len(final)} domains"',
         out,
     )
-    return out, "address-list=gfw_list" in text, len(final)
+    return out, "address-list=gfw_list" in text, len(final), n_dropped
 
 
 def main() -> None:
@@ -234,7 +251,8 @@ def main() -> None:
     lan_nets = to_nets(lan_items)
 
     cn_out, raw_ip, n_ip = build_cn(cn_text, custom_ips, lan_nets)
-    gfw_out, had_tag, n_domain = build_gfw(gfw_text)
+    custom_domains = load_list(ROOT / "custom_domains.txt")
+    gfw_out, had_tag, n_domain, n_dropped = build_gfw(gfw_text, custom_domains)
 
     selfcheck(to_nets(re.findall(r'^\s*"([^"]+)"', cn_out, re.M)), n_domain, prev)
 
@@ -247,7 +265,7 @@ def main() -> None:
         f"upstream: {UPSTREAM}",
         f"upstream_sig: {sig}",
         f"cn_entries: {n_ip} (上游 {raw_ip} + 自定义 {len(custom_ips)} + 内网 {len(lan_nets)}，去重合并后)",
-        f"gfw_domains: {n_domain}",
+        f"gfw_domains: {n_domain} (上游 + 自定义 {len(custom_domains)}，去重并剔除被父域覆盖的 {n_dropped} 条后)",
         f"excluded_ranges: {len(load_list(ROOT / 'custom_exclude.txt'))}",
         f"gfw_list_tag_removed: {had_tag}",
     ]
