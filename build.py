@@ -10,6 +10,7 @@
 
 import hashlib
 import ipaddress
+import os
 import re
 import urllib.request
 from datetime import datetime, timezone
@@ -143,6 +144,54 @@ def build_cn(text: str, custom_ips: list, lan_nets: list) -> tuple:
     return render(lines, start, end, [str(n) for n in final]), raw_count, len(final)
 
 
+def read_prev_meta() -> dict:
+    """读上一次构建留下的 VERSION.txt，用于比对上游指纹和条目数。"""
+    p = ROOT / "VERSION.txt"
+    if not p.exists():
+        return {}
+    meta = {}
+    for line in p.read_text(encoding="utf-8").splitlines():
+        if ":" in line:
+            k, v = line.split(":", 1)
+            meta[k.strip()] = v.strip()
+    return meta
+
+
+def prev_int(meta: dict, key: str) -> int:
+    m = re.search(r"\d+", meta.get(key, ""))
+    return int(m.group()) if m else 0
+
+
+def selfcheck(final: list, n_domain: int, prev: dict) -> None:
+    """提交前的最后一道关：任何一项不对劲就直接终止，坏表绝不出仓库门。"""
+    errs = []
+
+    if len(final) < 5000:
+        errs.append(f"cn 只有 {len(final)} 条（少于 5000），明显是残缺表")
+
+    prev_cn = prev_int(prev, "cn_entries")
+    if prev_cn and len(final) < prev_cn * 0.9:
+        errs.append(
+            f"cn 条目从 {prev_cn} 掉到 {len(final)}，跌幅超过一成，疑似上游给错数据"
+        )
+
+    if n_domain < 3000:
+        errs.append(f"域名只有 {n_domain} 个（少于 3000），疑似残缺")
+
+    # 再聚合一次，条数不变才说明没有互相包含 / 可合并的段
+    if len(list(ipaddress.collapse_addresses(final))) != len(final):
+        errs.append("cn 内部仍存在互相包含或可合并的段")
+
+    must = ["10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.0/8"]
+    miss = [x for x in must if not any(ipaddress.ip_network(x).subnet_of(n) for n in final)]
+    if miss:
+        errs.append(f"内网段丢失：{miss}")
+
+    if errs:
+        raise SystemExit("自检没通过，终止构建（不会提交）：\n- " + "\n- ".join(errs))
+    print(f"自检通过：cn {len(final)} 条，域名 {n_domain} 个", flush=True)
+
+
 def sort_domains(domains: list) -> list:
     """域名去重 + 排序。
     hierarchy（默认）：按域名层级排，同一主域下的子域聚在一起，同一后缀归为一组。
@@ -170,12 +219,24 @@ def build_gfw(text: str) -> tuple:
 def main() -> None:
     custom_ips = load_list(ROOT / "custom_ips.txt")
 
+    cn_text = fetch("CN.rsc")
     lan_text = fetch("LAN.rsc")
+    gfw_text = fetch("gfwlist_v7.rsc")
+
+    # 上游指纹：三个源文件都没变就说明没更新，定时任务可以直接收工
+    sig = hashlib.sha256((cn_text + lan_text + gfw_text).encode()).hexdigest()[:16]
+    prev = read_prev_meta()
+    if os.environ.get("SKIP_IF_UNCHANGED", "").lower() == "true" and prev.get("upstream_sig") == sig:
+        print(f"上游无变化（指纹 {sig}），本次跳过构建", flush=True)
+        return
+
     _, _, _, lan_items = parse_block(lan_text, "lanIps")
     lan_nets = to_nets(lan_items)
 
-    cn_out, raw_ip, n_ip = build_cn(fetch("CN.rsc"), custom_ips, lan_nets)
-    gfw_out, had_tag, n_domain = build_gfw(fetch("gfwlist_v7.rsc"))
+    cn_out, raw_ip, n_ip = build_cn(cn_text, custom_ips, lan_nets)
+    gfw_out, had_tag, n_domain = build_gfw(gfw_text)
+
+    selfcheck(to_nets(re.findall(r'^\s*"([^"]+)"', cn_out, re.M)), n_domain, prev)
 
     (ROOT / "cn.rsc").write_text(cn_out, encoding="utf-8")
     (ROOT / "gfwlist.rsc").write_text(gfw_out, encoding="utf-8")
@@ -184,6 +245,7 @@ def main() -> None:
     meta = [
         f"build_time: {now}",
         f"upstream: {UPSTREAM}",
+        f"upstream_sig: {sig}",
         f"cn_entries: {n_ip} (上游 {raw_ip} + 自定义 {len(custom_ips)} + 内网 {len(lan_nets)}，去重合并后)",
         f"gfw_domains: {n_domain}",
         f"excluded_ranges: {len(load_list(ROOT / 'custom_exclude.txt'))}",
