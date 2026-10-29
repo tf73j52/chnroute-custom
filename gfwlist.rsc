@@ -3881,6 +3881,7 @@
     "xinjiangpolicefiles.org";
     "xn--czq75pvv1aj5c.org";
     "xpud.org";
+    "xslist.org";
     "xuchao.org";
     "yangzhi.org";
     "yogichen.org";
@@ -4339,6 +4340,7 @@
     "improd.works";
     "6do.world";
     "google.ws";
+    "javmost.ws";
     "localdomain.ws";
     "missav.ws";
     "rmbl.ws";
@@ -4373,4 +4375,4 @@
 }
 
 /ip dns cache flush
-/log info "GFW domain list updated with 4361 domains"
+/log info "GFW domain list updated with 4363 domains"
