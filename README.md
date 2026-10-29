@@ -26,7 +26,7 @@
 | **域名去重 + 剔除冗余子域** | 完全相同的只留一条；表里已有 `wordpress.com` 时，`xxx.wordpress.com` 这类子域会被自动剔除（每条都带 match-subdomain=yes，父域已经覆盖了子域） |
 | **域名排序** | 去重后按层级排，同一主域下的子域聚在一起（`1-apple.com.tw` 紧挨 `powerapple.com` 那组）；想改成纯字典序，把 `build.py` 里的 `DOMAIN_SORT` 改成 `"alpha"` |
 
-`VERSION.txt` 里的 `cn_entries` / `lan_entries` / `gfw_domains` 就是整理后的实际条目数。
+`VERSION.txt` 里的 `cn_entries` / `gfw_domains` 就是整理后的实际条目数。
 
 ## 定制项
 
