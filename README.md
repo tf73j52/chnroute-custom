@@ -52,8 +52,12 @@ https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/gfwlist.rsc
 
 ```routeros
 :global dnsserver "proxy"
+# 先记下原本处于开启状态的日志条目
+:local logOpen [/system logging find disabled=no]
 /system logging disable [find]
 :foreach f in={"cn.rsc";"gfwlist.rsc"} do={ /tool fetch url=("https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/" . $f) dst-path=$f duration=20s check-certificate=no; /import $f; /file remove [find name=$f] }
+# 只把上面记下的那些恢复回去，原本就关着的保持关着
+:foreach lid in=$logOpen do={ /system logging enable $lid }
 ```
 
 说明：
@@ -61,7 +65,7 @@ https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/gfwlist.rsc
 - `cn.rsc` 自身第一行就会清空旧的 cn 列表，所以脚本里不需要额外的 `remove [find list=cn]`；
 - 内网段已经在 `cn.rsc` 里了，所以数组里**没有 `lan.rsc`**，仓库里也**没有这个文件了**；
 - 如果还在用旧脚本（数组里三个文件），必须先把 `"lan.rsc"` 从数组里删掉，否则会去下载一个不存在的文件，导致后面的 `gfwlist.rsc` 不再导入；
-- 脚本开头的 `/system logging disable [find]` 是为了避免几千条 add 刷爆日志，跑完不会自动恢复。需要保留日志的话，在最后补一行 `/system logging enable [find]`。
+- 脚本里那对日志开关是为了避免几千条 `add` 把日志刷爆：导入前先记下**原本开着**的条目并临时全关，导入后再把记下的那些恢复——原本就关着的条目不会被误开。不要图省事写成 `/system logging enable [find]`，那会把你主动关掉的日志也一并打开。
 
 ## 三道保险
 
