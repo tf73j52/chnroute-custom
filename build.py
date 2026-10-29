@@ -22,10 +22,6 @@ MIRRORS = [
     "https://raw.githubusercontent.com/ruijzhan/chnroute/master",
 ]
 TIMEOUT = 120
-# 内网段已并入 cn.rsc，lan.rsc 只留一条日志占位，保证旧脚本导入时不报错、不中断
-LAN_PLACEHOLDER = (
-    '/log info "lan.rsc 已并入 cn.rsc，此文件为空，仅为兼容旧脚本，可安全忽略"\n'
-)
 # 域名排序方式：hierarchy（按层级，同主域聚一起） / alpha（纯字典序）
 DOMAIN_SORT = "hierarchy"
 ROOT = Path(__file__).resolve().parent
@@ -182,7 +178,6 @@ def main() -> None:
     gfw_out, had_tag, n_domain = build_gfw(fetch("gfwlist_v7.rsc"))
 
     (ROOT / "cn.rsc").write_text(cn_out, encoding="utf-8")
-    (ROOT / "lan.rsc").write_text(LAN_PLACEHOLDER, encoding="utf-8")
     (ROOT / "gfwlist.rsc").write_text(gfw_out, encoding="utf-8")
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -190,12 +185,11 @@ def main() -> None:
         f"build_time: {now}",
         f"upstream: {UPSTREAM}",
         f"cn_entries: {n_ip} (上游 {raw_ip} + 自定义 {len(custom_ips)} + 内网 {len(lan_nets)}，去重合并后)",
-        f"lan_entries: 0 (内网段已并入 cn.rsc，lan.rsc 为空占位)",
         f"gfw_domains: {n_domain}",
         f"excluded_ranges: {len(load_list(ROOT / 'custom_exclude.txt'))}",
         f"gfw_list_tag_removed: {had_tag}",
     ]
-    for name in ("cn.rsc", "lan.rsc", "gfwlist.rsc"):
+    for name in ("cn.rsc", "gfwlist.rsc"):
         data = (ROOT / name).read_bytes()
         meta.append(f"{name}: {len(data)} bytes, sha1={hashlib.sha1(data).hexdigest()}")
     (ROOT / "VERSION.txt").write_text("\n".join(meta) + "\n", encoding="utf-8")
