@@ -8,7 +8,7 @@ on:
   push:
     branches: [main]
     # 只在定制内容或构建脚本变化时触发，避免机器人自己的提交再次触发形成回环
-    paths: ['custom_ips.txt', 'build.py']
+    paths: ['custom_ips.txt', 'custom_exclude.txt', 'build.py']
 
 permissions:
   contents: write
