@@ -3,7 +3,6 @@ upstream: https://raw.githubusercontent.com/ruijzhan/chnroute/master
 upstream_sig: 35612a8b920f44a6
 cn_entries: 7803 (上游 7955 + 自定义 26 + 内网 15，去重合并后)
 gfw_domains: 4363 (上游 + 自定义 2，去重并剔除被父域覆盖的 20 条后)
-excluded_ranges: 0
 gfw_list_tag_removed: True
 cn.rsc: 177982 bytes, sha1=1913c72c63334ecae2ee60fee6d55a194896057a
 gfwlist.rsc: 89372 bytes, sha1=e6b4e4bc72269fa673f4f9d0ab5b17cd44644161
