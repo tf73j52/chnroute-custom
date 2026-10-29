@@ -35,7 +35,7 @@
 | `ips.txt` | 要并入 `cn` 的 IP 段（每行一个，`#` 开头为注释），**直连**用 |
 | `domains.txt` | 要追加进 gfwlist 的域名（每行一个，`#` 开头为注释），让这些域名**走代理 DNS** 解析。**只影响 DNS 解析**，目标 IP 最终走不走代理仍由 `cn` 列表决定（不在 `cn` 里就走代理） |
 
-两个文件改完推送后 Actions 会自动生效，不需要动 `build.py`。
+改完推送 Actions 会自动生效；日常增删不需要碰 `build.py`（真改了它也会触发一次构建）。
 
 当前 `ips.txt` 里并入的是腾讯云海外段（`43.128~175`、`49.51`、`101.32/33`、`119.28`、`129.226`、`203.205`、`216.198`）加 Apple 全段（`17.0.0.0/8`）。增删直接改 `ips.txt`，**完完整整的清单以该文件为准**。
 
@@ -46,7 +46,7 @@ https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/cn.rsc
 https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/gfwlist.rsc
 ```
 
-`VERSION.txt` 记录构建时间、上游地址、各文件大小与 sha1，可用来确认拉到的是不是最新。
+`VERSION.txt` 记录构建时间、上游地址、上游指纹 `upstream_sig`（「上游没变就收工」就是靠它比对）、整理后的条目数、各文件大小与 sha1，可用来确认拉到的是不是最新。
 
 ## 对应的 RouterOS 脚本
 
@@ -60,6 +60,7 @@ https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/gfwlist.rsc
 
 说明：
 
+- `dnsserver` 必须在路由器上真实存在，二选一：① 直接写你的代理 DNS 的 IP（如 `:global dnsserver 192.168.0.2`）；② 保留 `"proxy"` 这种名字写法的话，要先建一个同名 forwarder——`/ip/dns/forwarders/add name=proxy dns-servers=192.168.0.2`。**用了名字却没建 forwarder，FWD 条目就转不出去，域名等于白加**（`forward-to` 接受 IP、DNS 名、forwarder 名三种写法）；
 - `cn.rsc` 自身第一行就会清空旧的 cn 列表，所以脚本里不需要额外的 `remove [find list=cn]`；
 - 内网段已经在 `cn.rsc` 里了，数组里**没有 `lan.rsc`**、仓库里也**没有这个文件了**；还在用旧脚本（数组里三个文件）的话必须先删掉 `"lan.rsc"`，否则会去下载不存在的文件，导致后面的 `gfwlist.rsc` 不再导入；
 - 日志那两行是防止几千条 `add` 刷爆日志：先记下开着的条目再临时全关，跑完照原样恢复（所以这段要**整段**粘贴，拆开跑变量就丢了）。别图省事写成 `enable [find]`，那会把你主动关掉的日志也一并打开。
@@ -82,5 +83,6 @@ https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/gfwlist.rsc
 
 ## 注意
 
+- GitHub 的定时任务不保证准点，高峰期可能晚几分钟到几十分钟，属正常现象；
 - jsDelivr 对分支文件有缓存，workflow 里已加 purge 请求；若仍拿到旧文件，等十几分钟重试。
 - 上游文件结构若变化（如 `:local ipList` 块改名），`build.py` 会直接报错退出，不会产生残缺产物。
