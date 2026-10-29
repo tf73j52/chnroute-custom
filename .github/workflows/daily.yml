@@ -6,10 +6,20 @@ on:
     # 注意：GitHub 不保证准点，高峰期可能晚几分钟
     - cron: '0 16 * * *'
   workflow_dispatch: # 允许手动点一下立即构建
+    inputs:
+      skip_if_unchanged:
+        description: '上游没变化时跳过（模拟定时触发的行为）'
+        type: boolean
+        default: false
   push:
     branches: [main]
     # 只在定制内容或构建脚本变化时触发，避免机器人自己的提交再次触发形成回环
     paths: ['custom_ips.txt', 'custom_exclude.txt', 'build.py']
+
+# 并发保护：同一时间只允许一个构建，后来的排队等着，避免抢着提交被拒
+concurrency:
+  group: daily-build
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -28,6 +38,9 @@ jobs:
 
       - name: 拉取上游并按需求生成
         run: python3 build.py
+        env:
+          # 定时触发时，上游没变化就直接收工；手动或改定制触发则一律重算
+          SKIP_IF_UNCHANGED: ${{ github.event_name == 'schedule' || github.event.inputs.skip_if_unchanged == 'true' }}
 
       - name: 提交变更
         run: |
