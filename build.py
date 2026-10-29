@@ -5,7 +5,7 @@
 构建阶段统一做三件事：
   1. 网段去重合并（collapse）：上游段、ips.txt 的段互相包含的只留最大段；
   2. 内网段并进 cn，两者一起去重合并，同一个 cn 列表里不允许有互相包含的段；
-  3. 网段按数值排序、域名按默认字典序排序（同一主域的子域按字母散在各处）。
+  3. 网段按数值排序、域名去重后按纯字典序排序。
 """
 
 import hashlib
@@ -23,8 +23,6 @@ MIRRORS = [
     "https://raw.githubusercontent.com/ruijzhan/chnroute/master",
 ]
 TIMEOUT = 120
-# 域名排序方式：alpha（纯字典序，默认） / hierarchy（按层级，同主域聚一起）
-DOMAIN_SORT = "alpha"
 ROOT = Path(__file__).resolve().parent
 
 
@@ -174,14 +172,9 @@ def strip_covered(domains: list) -> tuple:
 
 
 def sort_domains(domains: list) -> list:
-    """域名去重 + 排序。
-    alpha（当前所用，也是 Python 的默认行为）：纯字典序，直接用内建 sorted，
-    按字母查某个域名最快。
-    hierarchy：按域名层级排，同一主域下的子域聚在一起，同一后缀归为一组。"""
-    uniq = sorted(set(domains))
-    if DOMAIN_SORT == "hierarchy":
-        return sorted(uniq, key=lambda d: (tuple(reversed(d.split("."))), d))
-    return uniq
+    """域名去重 + 排序：纯字典序，直接用 Python 内建 sorted，
+    一路顺着字母往下走，按字母查某个域名最快。"""
+    return sorted(set(domains))
 
 
 def build_gfw(text: str, custom_domains: list) -> tuple:
@@ -190,8 +183,7 @@ def build_gfw(text: str, custom_domains: list) -> tuple:
     cleaned = re.sub(r"\saddress-list=gfw_list", "", text)
     lines, start, end, domains = parse_block(cleaned, "domainList")
     all_d = [d.strip().lower() for d in domains] + [d.strip().lower() for d in custom_domains]
-    final, n_dropped = strip_covered(sorted(set(all_d)))
-    final = sort_domains(final)
+    final, n_dropped = strip_covered(sort_domains(all_d))
     out = render(lines, start, end, final)
     out = re.sub(
         r'/log info "GFW domain list updated with \d+ domains"',

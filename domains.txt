@@ -1,5 +1,5 @@
 # 要追加进 gfwlist 的域名（走代理 DNS 解析）
-# 作用：这些域名及其所有子域，解析时会转给 proxy DNS（192.168.0.2），拿到无污染 IP
+# 作用：这些域名及其所有子域，解析时会转给 RouterOS 脚本里指定的 $dnsserver（README 示例脚本里默认为 "proxy"），拿到无污染 IP
 # 注意：只影响 DNS 解析。目标 IP 是否走代理仍由 cn 列表决定（不在 cn 里就走代理）
 xslist.org
 javmost.ws
