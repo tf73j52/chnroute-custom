@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """从上游 ruijzhan/chnroute 拉取最新列表，按 ips.txt 二次加工，
-产出小写命名、直接写 list=cn 的 cn.rsc / lan.rsc / gfwlist.rsc。
+产出小写命名、直接写 list=cn 的 cn.rsc / gfwlist.rsc。
 
 构建阶段统一做三件事：
   1. 网段去重合并（collapse）：上游段、ips.txt 的段互相包含的只留最大段；
-  2. cn 与 lan 之间做差集，两个文件写入同一个 cn 列表，不允许有重叠；
+  2. 内网段并进 cn，两者一起去重合并，同一个 cn 列表里不允许有互相包含的段；
   3. 网段按数值排序、域名按默认字典序排序（同一主域的子域按字母散在各处）。
 """
 
