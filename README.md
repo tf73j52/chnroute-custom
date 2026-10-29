@@ -7,7 +7,7 @@
 | 产物 | 说明 |
 |---|---|
 | `cn.rsc` | 上游国内段 + `custom_ips.txt` 里的 26 个段 + **14 条内网段**，**列表名直接是小写 `cn`**，文件自带清空逻辑 |
-| `gfwlist.rsc` | 上游 gfw 域名列表，**已去掉 `address-list=gfw_list` 标签**，不追加任何自定义域名 |
+| `gfwlist.rsc` | 上游 gfw 域名列表 + `custom_domains.txt` 的自定义域名，**已去掉 `address-list=gfw_list` 标签**，被父域覆盖的多余子域自动剔除 |
 
 内网段（原来的 `lan.rsc`）已合并进 `cn.rsc`，不再单独产出文件。
 
@@ -23,6 +23,7 @@
 | **相邻段聚合** | 能合成一条的不拆开写，例如 `43.160.0.0/16` + `43.161.0.0/16` 合成 `43.160.0.0/15` |
 | **内网段并进 cn** | lan 的 14 条内网段直接合并进 `cn.rsc`，去重后一起排序，路由器只导入一个文件就够了 |
 | **网段排序** | 按网段起始地址的数值从小到大排 |
+| **域名去重 + 剔除冗余子域** | 完全相同的只留一条；表里已有 `wordpress.com` 时，`xxx.wordpress.com` 这类子域会被自动剔除（每条都带 match-subdomain=yes，父域已经覆盖了子域） |
 | **域名排序** | 去重后按层级排，同一主域下的子域聚在一起（`1-apple.com.tw` 紧挨 `powerapple.com` 那组）；想改成纯字典序，把 `build.py` 里的 `DOMAIN_SORT` 改成 `"alpha"` |
 
 `VERSION.txt` 里的 `cn_entries` / `lan_entries` / `gfw_domains` 就是整理后的实际条目数。
@@ -31,8 +32,9 @@
 
 | 文件 | 作用 |
 |---|---|
-| `custom_ips.txt` | 要并入 `cn` 的 IP 段（每行一个，`#` 开头为注释） |
+| `custom_ips.txt` | 要并入 `cn` 的 IP 段（每行一个，`#` 开头为注释），**直连**用 |
 | `custom_exclude.txt` | 要从上面这些段里**剔除**的更精确网段（每行一个，`#` 开头为注释） |
+| `custom_domains.txt` | 要追加进 gfwlist 的域名（每行一个，`#` 开头为注释），让这些域名**走代理 DNS** 解析 |
 
 两个文件改完推送后 Actions 会自动生效，不需要动 `build.py`。
 
