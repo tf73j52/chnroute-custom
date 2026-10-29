@@ -24,7 +24,7 @@
 | **内网段并进 cn** | lan 的 14 条内网段直接合并进 `cn.rsc`，去重后一起排序，路由器只导入一个文件就够了 |
 | **网段排序** | 按网段起始地址的数值从小到大排 |
 | **域名去重 + 剔除冗余子域** | 完全相同的只留一条；表里已有 `wordpress.com` 时，`xxx.wordpress.com` 这类子域会被自动剔除（每条都带 match-subdomain=yes，父域已经覆盖了子域） |
-| **域名排序** | 去重后按层级排，同一主域下的子域聚在一起（`1-apple.com.tw` 紧挨 `powerapple.com` 那组）；想改成纯字典序，把 `build.py` 里的 `DOMAIN_SORT` 改成 `"alpha"` |
+| **域名排序** | 去重后按纯字典序排（Python 默认的 `sorted()`，一路顺着字母往下走），按字母查某个域名最快；想改回「同一主域聚在一起」的层级排法，把 `build.py` 里的 `DOMAIN_SORT` 改成 `"hierarchy"` |
 
 `VERSION.txt` 里的 `cn_entries` / `gfw_domains` 就是整理后的实际条目数。
 

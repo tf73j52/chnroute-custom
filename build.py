@@ -5,7 +5,7 @@
 构建阶段统一做三件事：
   1. 网段去重合并（collapse）：上游段、ips.txt 的段互相包含的只留最大段；
   2. cn 与 lan 之间做差集，两个文件写入同一个 cn 列表，不允许有重叠；
-  3. 网段按数值排序、域名按层级排序（同一主域的子域聚在一起）。
+  3. 网段按数值排序、域名按默认字典序排序（同一主域的子域按字母散在各处）。
 """
 
 import hashlib
@@ -23,8 +23,8 @@ MIRRORS = [
     "https://raw.githubusercontent.com/ruijzhan/chnroute/master",
 ]
 TIMEOUT = 120
-# 域名排序方式：hierarchy（按层级，同主域聚一起） / alpha（纯字典序）
-DOMAIN_SORT = "hierarchy"
+# 域名排序方式：alpha（纯字典序，默认） / hierarchy（按层级，同主域聚一起）
+DOMAIN_SORT = "alpha"
 ROOT = Path(__file__).resolve().parent
 
 
@@ -175,12 +175,13 @@ def strip_covered(domains: list) -> tuple:
 
 def sort_domains(domains: list) -> list:
     """域名去重 + 排序。
-    hierarchy（默认）：按域名层级排，同一主域下的子域聚在一起，同一后缀归为一组。
-    alpha：纯字典序，按字母查某个域名最快。"""
+    alpha（当前所用，也是 Python 的默认行为）：纯字典序，直接用内建 sorted，
+    按字母查某个域名最快。
+    hierarchy：按域名层级排，同一主域下的子域聚在一起，同一后缀归为一组。"""
     uniq = sorted(set(domains))
-    if DOMAIN_SORT == "alpha":
-        return uniq
-    return sorted(uniq, key=lambda d: (tuple(reversed(d.split("."))), d))
+    if DOMAIN_SORT == "hierarchy":
+        return sorted(uniq, key=lambda d: (tuple(reversed(d.split("."))), d))
+    return uniq
 
 
 def build_gfw(text: str, custom_domains: list) -> tuple:
