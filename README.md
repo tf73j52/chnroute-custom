@@ -59,7 +59,6 @@
 
 ```
 https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/cn.rsc
-https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/lan.rsc
 https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/gfwlist.rsc
 ```
 
