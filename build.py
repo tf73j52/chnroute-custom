@@ -91,29 +91,6 @@ def normalize(nets: list) -> list:
     return sorted(merged, key=lambda n: (int(n.network_address), n.prefixlen))
 
 
-def subtract_all(nets: list, excludes: list) -> list:
-    """从 nets 中减去所有 exclude。exclude 必须是某段的子网才能精确相减，
-    部分重叠时保留原段（CIDR 无法表示，强拆会误伤）。"""
-    out = []
-    for net in nets:
-        cur = [net]
-        for ex in excludes:
-            if not any(c.overlaps(ex) for c in cur):
-                continue
-            nxt = []
-            for c in cur:
-                if not c.overlaps(ex):
-                    nxt.append(c)
-                    continue
-                try:
-                    nxt.extend(c.address_exclude(ex))
-                except ValueError:
-                    nxt.append(c)
-            cur = nxt
-        out.extend(cur)
-    return out
-
-
 def build_cn(text: str, custom_ips: list, lan_nets: list) -> tuple:
     """上游 CN.rsc → cn.rsc：改小写、并入自定义段与内网段、去重合并排序。"""
     out = text.replace("list=CN", "list=cn")
@@ -126,16 +103,6 @@ def build_cn(text: str, custom_ips: list, lan_nets: list) -> tuple:
             nets.append(ipaddress.ip_network(raw, strict=False))
         except ValueError:
             print(f"[warn] 忽略无效的自定义段：{raw}", flush=True)
-
-    # 挖洞：custom_exclude.txt 里声明的更精确前缀
-    excluded = []
-    for raw in load_list(ROOT / "custom_exclude.txt"):
-        try:
-            excluded.append(ipaddress.ip_network(raw, strict=False))
-        except ValueError:
-            print(f"[warn] 忽略无效的排除段：{raw}", flush=True)
-    if excluded:
-        nets = subtract_all(nets, excluded)
 
     # 内网段直接并进 cn：路由器只需导入一个文件
     nets.extend(lan_nets)
@@ -266,7 +233,6 @@ def main() -> None:
         f"upstream_sig: {sig}",
         f"cn_entries: {n_ip} (上游 {raw_ip} + 自定义 {len(custom_ips)} + 内网 {len(lan_nets)}，去重合并后)",
         f"gfw_domains: {n_domain} (上游 + 自定义 {len(custom_domains)}，去重并剔除被父域覆盖的 {n_dropped} 条后)",
-        f"excluded_ranges: {len(load_list(ROOT / 'custom_exclude.txt'))}",
         f"gfw_list_tag_removed: {had_tag}",
     ]
     for name in ("cn.rsc", "gfwlist.rsc"):
