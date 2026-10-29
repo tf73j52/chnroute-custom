@@ -1119,7 +1119,6 @@
     "huobipro.com";
     "secure.hustler.com";
     "hustlercash.com";
-    "www.hustlercash.com";
     "hybrid-analysis.com";
     "hyperbeam.com";
     "hyperrate.com";
@@ -1236,7 +1235,6 @@
     "killwall.com";
     "kindle4rss.com";
     "kindleren.com";
-    "www.kindleren.com";
     "kinokuniya.com";
     "kkbox.com";
     "knowyourmeme.com";
@@ -2203,22 +2201,6 @@
     "wolfax.com";
     "woolyss.com";
     "wordpress.com";
-    "chenshan20042005.wordpress.com";
-    "chinaview.wordpress.com";
-    "cnbbnews.wordpress.com";
-    "freedominfonetweb.wordpress.com";
-    "hka8964.wordpress.com";
-    "hkanews.wordpress.com";
-    "hqsbnet.wordpress.com";
-    "hqsbonline.wordpress.com";
-    "ifreechina.wordpress.com";
-    "investigating.wordpress.com";
-    "jobnewera.wordpress.com";
-    "matthewdgreen.wordpress.com";
-    "minghuiyw.wordpress.com";
-    "sujiatun.wordpress.com";
-    "wo3ttt.wordpress.com";
-    "xijie.wordpress.com";
     "workatruna.com";
     "worldjournal.com";
     "wowgirls.com";
@@ -2500,7 +2482,6 @@
     "z-lib.gl";
     "ipac.global";
     "longbridge.global";
-    "quote.longbridge.global";
     "google.gm";
     "pki.goog";
     "translate.goog";
@@ -3301,7 +3282,6 @@
     "bsky.network";
     "fanqiang.network";
     "hysteria.network";
-    "v2.hysteria.network";
     "deck.new";
     "doc.new";
     "docs.new";
@@ -4393,4 +4373,4 @@
 }
 
 /ip dns cache flush
-/log info "GFW domain list updated with 4381 domains"
+/log info "GFW domain list updated with 4361 domains"
