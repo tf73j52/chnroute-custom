@@ -1,0 +1,45 @@
+name: daily-build
+
+on:
+  schedule:
+    # 每天 UTC 03:00（北京时间 11:00）自动执行
+    - cron: '0 3 * * *'
+  workflow_dispatch: # 允许手动点一下立即构建
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 准备 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 拉取上游并按需求生成
+        run: python3 build.py
+
+      - name: 提交变更
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "本次无变化，跳过提交"
+          else
+            git commit -m "chore: daily update $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          fi
+
+      - name: 刷新 jsDelivr 缓存
+        run: |
+          for f in cn.rsc lan.rsc gfwlist.rsc VERSION.txt; do
+            curl -s -m 30 "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@main/$f" || true
+          done
