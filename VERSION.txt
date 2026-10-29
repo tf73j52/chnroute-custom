@@ -1,7 +1,0 @@
-build_time: 2026-10-29 04:23:26 UTC
-upstream: https://raw.githubusercontent.com/ruijzhan/chnroute/master
-custom_ips_added: 26
-gfw_list_tag_removed: True
-cn.rsc: 181883 bytes, sha1=e6d098eb5b36e663745356fb2a1bad53c1d68e6a
-lan.rsc: 476 bytes, sha1=d72e64a215856bd23da34227ad414e60d0923764
-gfwlist.rsc: 89952 bytes, sha1=cc9f42bcab876fef4a5c01304b2bbb0548686df9
