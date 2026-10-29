@@ -7,6 +7,8 @@ on:
   workflow_dispatch: # 允许手动点一下立即构建
   push:
     branches: [main]
+    # 只在定制内容或构建脚本变化时触发，避免机器人自己的提交再次触发形成回环
+    paths: ['custom_ips.txt', 'build.py']
 
 permissions:
   contents: write
@@ -35,6 +37,7 @@ jobs:
             echo "本次无变化，跳过提交"
           else
             git commit -m "chore: daily update $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git pull --rebase origin main
             git push
           fi
 
