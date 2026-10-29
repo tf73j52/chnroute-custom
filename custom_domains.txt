@@ -1,5 +1,0 @@
-# 需要额外并入 gfwlist_v7.rsc 的域名（每行一个，# 开头为注释）
-# 这些域名会被指向 $dnsserver 解析（走代理 DNS）
-# 来源：原 RouterOS 脚本中的自定义 FWD 条目
-javmost.ws
-xslist.org
