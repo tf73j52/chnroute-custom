@@ -40,7 +40,6 @@ https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/gfwlist.rsc
 ```
 
 - `dnsserver` 必须真实存在：直接填代理 DNS 的 IP，或先建同名 forwarder（`/ip/dns/forwarders/add name=proxy dns-servers=<IP>`）。用了名字却没建，FWD 条目转不出去；
-- 旧脚本数组里若还有 `"lan.rsc"` 必须删掉，该文件已不存在，会导致后续文件导入中断；
 - 日志两行是防止几千条 add 刷爆日志，需整段粘贴。
 
 ## 构建机制
