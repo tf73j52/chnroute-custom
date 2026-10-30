@@ -3957,6 +3957,7 @@
     "vpnhub.com";
     "vpninja.net";
     "vpnjack.com";
+    "vpnjantit.com";
     "vpnmaster.com";
     "vpnmentor.com";
     "vpnpick.com";
@@ -4375,4 +4376,4 @@
 }
 
 /ip dns cache flush
-/log info "GFW domain list updated with 4363 domains"
+/log info "GFW domain list updated with 4364 domains"
