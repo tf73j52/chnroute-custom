@@ -7,16 +7,24 @@
 | 产物 | 说明 |
 |---|---|
 | `cn.rsc` | 上游国内段 + `ips.txt` 自定义段 + 内网段，列表名小写 `cn`，文件自带清空旧列表逻辑 |
-| `gfwlist.rsc` | 上游 gfw 域名 + `domains.txt` 自定义域名 − `exclude.txt` 排除域名，被父域覆盖的子域自动剔除；FWD 记录带 `address-list=gfw_list`，域名解析出的 IP 自动写入防火墙地址列表 `gfw_list` |
+| `gfwlist.rsc` | 上游 gfw 域名 + `domains.txt` 自定义域名 − `exclude.txt` 排除域名，被父域覆盖的子域自动剔除；FWD 记录自带 `address-list=gfwlist`，域名被解析时其 IP 自动写入防火墙 `gfwlist` 地址列表 |
 
 内网段（原 `lan.rsc`）已并入 `cn.rsc`，路由器只需导入这两个文件。
+
+### gfwlist 地址列表
+
+`gfwlist.rsc` 的 FWD 记录自带 `address-list=gfwlist`：当 gfwlist 域名被解析时，解析出的 IP 会自动写入防火墙的 `gfwlist` 地址列表（TTL 到期自动清除，下次访问再重新填充）。可配合 mangle 做精确分流，例如强制这些 IP 走代理：
+
+```routeros
+/ip firewall mangle add chain=prerouting src-address-list=proxy dst-address-list=gfwlist action=mark-routing new-routing-mark=vpn passthrough=no
+```
 
 ## 定制项
 
 | 文件 | 作用 |
 |---|---|
 | `ips.txt` | 并入 `cn` 的 IP 段，**直连**用。当前用于 WeChat / Apple 应用直连 |
-| `domains.txt` | 追加进 gfwlist 的域名，让其**走代理 DNS** 解析，解析出的 IP 会写入 `gfw_list` 地址列表（流量走不走代理仍由 `cn` 列表决定） |
+| `domains.txt` | 追加进 gfwlist 的域名，让其**走代理 DNS** 解析；解析出的 IP 自动写入 `gfwlist` 地址列表，可配合 mangle 强制走代理 |
 | `exclude.txt` | 从 gfwlist 中**排除**的域名（含其子域），每行一个 |
 
 改完推送即自动构建生效；日常增删不需要碰 `build.py`。

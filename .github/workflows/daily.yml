@@ -44,12 +44,17 @@ jobs:
             echo "无变化，跳过提交"
           else
             git commit -m "chore: daily update $(date -u +'%Y-%m-%d %H:%M UTC')"
-            git pull --rebase origin main
-            git push
+            if git pull --rebase origin main; then
+              git push
+            else
+              echo "::warning::rebase 冲突，中止本次自动提交（下次构建会自动重试）"
+              git rebase --abort
+            fi
           fi
 
-      - name: 刷新缓存
+      - name: 刷新 jsDelivr 缓存
         run: |
+          # purge 失败不阻塞构建：jsDelivr 会按自身缓存策略自动过期
           for f in cn.rsc gfwlist.rsc VERSION.txt; do
             curl -s -m 30 "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@main/$f" || true
           done
