@@ -26,7 +26,10 @@ RouterOS 导入：
 
 ```routeros
 :global dnsserver "proxy"
-:foreach f in={"cn.rsc";"gfwlist.rsc"} do={ /tool fetch url=("https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/" . $f) dst-path=$f; /import $f; /file remove [find name=$f] }
+:local logOpen [/system logging find disabled=no]
+/system logging disable [find]
+:foreach f in={"cn.rsc";"gfwlist.rsc"} do={ /tool fetch url=("https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/" . $f) dst-path=$f duration=10s check-certificate=no; /import $f; /file remove [find name=$f] }
+:foreach lid in=$logOpen do={ /system logging enable $lid }
 ```
 
-> `dnsserver` 需指向真实存在的代理 DNS（IP 或同名 forwarder）。
+> `dnsserver` 需指向真实存在的代理 DNS（IP 或同名 forwarder）；日志三行需整段粘贴，避免导入上万条记录时刷屏。
