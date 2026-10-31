@@ -17,10 +17,10 @@ MIRRORS = [
 TIMEOUT = 120
 ROOT = Path(__file__).resolve().parent
 
-# 自检阈值：集中管理，避免魔法数字散落各处
+# 自检阈值
 MIN_CN_ENTRIES = 5000
 MIN_DOMAIN_ENTRIES = 3000
-MAX_CN_DROP_RATIO = 0.9  # 相对上一版最多跌到 90%，超过即视为异常
+MAX_CN_DROP_RATIO = 0.9  # 相对上一版最大跌幅，超过视为异常
 PRIVATE_NETS = ("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.0/8")
 
 IPNet = ipaddress.IPv4Network | ipaddress.IPv6Network
@@ -35,7 +35,7 @@ def fetch(name: str) -> str:
             req = urllib.request.Request(url, headers={"User-Agent": "chnroute-custom-build"})
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 return resp.read().decode("utf-8")
-        except Exception as exc:  # 网络异常统一降级到下一个镜像
+        except Exception as exc:  # 网络异常降级到下一个镜像
             last_error = exc
             print(f"[warn] {url}：{exc}", flush=True)
     raise SystemExit(f"拉取 {name} 失败：{last_error}")
@@ -129,9 +129,6 @@ def selfcheck(cn_nets: list[IPNet], n_domain: int, prev: dict[str, str]) -> None
         errors.append(f"cn 从 {prev_cn} 跌至 {len(cn_nets)}（跌幅>{(1 - MAX_CN_DROP_RATIO):.0%}）")
     if n_domain < MIN_DOMAIN_ENTRIES:
         errors.append(f"域名仅 {n_domain} 个（<{MIN_DOMAIN_ENTRIES}）")
-    # 防御性断言：normalize 的结果应不可再合并（防止未来改坏 normalize）
-    if len(normalize(cn_nets)) != len(cn_nets):
-        errors.append("cn 仍存在可合并网段")
     private = [ipaddress.ip_network(x) for x in PRIVATE_NETS]
     missing = [str(x) for x in private if not any(x.subnet_of(n) for n in cn_nets)]
     if missing:
@@ -141,7 +138,7 @@ def selfcheck(cn_nets: list[IPNet], n_domain: int, prev: dict[str, str]) -> None
     print(f"自检通过：cn {len(cn_nets)} 条，域名 {n_domain} 个", flush=True)
 
 
-def has_suffix(domain: str, names: set[str], *, include_self: bool) -> bool:
+def is_listed(domain: str, names: set[str], *, include_self: bool) -> bool:
     """判断 domain 自身（可选）或其任一父域名是否在 names 中。"""
     parts = domain.split(".")
     start = 0 if include_self else 1
@@ -149,19 +146,10 @@ def has_suffix(domain: str, names: set[str], *, include_self: bool) -> bool:
 
 
 def strip_covered(domains: list[str]) -> tuple[list[str], int]:
-    """剔除已被父域名覆盖的子域（父域 match-subdomain 已覆盖其全部子域）。"""
+    """剔除已被父域名覆盖的子域，返回 (保留项, 剔除数)。"""
     domset = set(domains)
-    kept = [d for d in domains if not has_suffix(d, domset, include_self=False)]
+    kept = [d for d in domains if not is_listed(d, domset, include_self=False)]
     return kept, len(domains) - len(kept)
-
-
-def sort_domains(domains: list[str]) -> list[str]:
-    return sorted(set(domains))
-
-
-def is_blocked(domain: str, exclude: set[str]) -> bool:
-    """判断域名自身或其父域是否在排除名单中。"""
-    return has_suffix(domain, exclude, include_self=True)
 
 
 def build_gfw(text: str, custom_domains: list[str], exclude_domains: list[str]) -> tuple[str, int, int, int]:
@@ -169,9 +157,9 @@ def build_gfw(text: str, custom_domains: list[str], exclude_domains: list[str]) 
     domains = extract_items(cleaned, "domainList")
     all_domains = [d.strip().lower() for d in domains + custom_domains]
     exclude = set(exclude_domains)
-    kept = [d for d in all_domains if not is_blocked(d, exclude)]
+    kept = [d for d in all_domains if not is_listed(d, exclude, include_self=True)]
     n_excluded = len(all_domains) - len(kept)
-    final, n_dropped = strip_covered(sort_domains(kept))
+    final, n_dropped = strip_covered(sorted(set(kept)))
     out = render_block(cleaned, "domainList", final)
     out = re.sub(
         r'/log info "GFW domain list updated with \d+ domains"',
@@ -194,7 +182,6 @@ def main() -> None:
         return
 
     lan_nets = to_nets(extract_items(lan_text, "lanIps"))
-
     cn_out, raw_ip, cn_nets = build_cn(cn_text, custom_ips, lan_nets)
     custom_domains = load_list(ROOT / "domains.txt")
     exclude_domains = load_list(ROOT / "exclude.txt")

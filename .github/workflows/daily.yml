@@ -42,14 +42,14 @@ jobs:
           git add -A
           if git diff --cached --quiet; then
             echo "无变化，跳过提交"
+            exit 0
+          fi
+          git commit -m "chore: daily update $(date -u +'%Y-%m-%d %H:%M UTC')"
+          if git pull --rebase origin main; then
+            git push
           else
-            git commit -m "chore: daily update $(date -u +'%Y-%m-%d %H:%M UTC')"
-            if git pull --rebase origin main; then
-              git push
-            else
-              echo "::warning::rebase 冲突，中止本次自动提交（下次构建会自动重试）"
-              git rebase --abort
-            fi
+            echo "::warning::rebase 冲突，中止本次自动提交（下次构建会自动重试）"
+            git rebase --abort
           fi
 
       - name: 刷新 jsDelivr 缓存
