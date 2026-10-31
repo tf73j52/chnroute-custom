@@ -2,21 +2,17 @@ name: daily-build
 
 on:
   schedule:
-    # 每天 UTC 16:00（北京时间 次日 00:00）自动执行
-    # 注意：GitHub 不保证准点，高峰期可能晚几分钟
     - cron: '0 16 * * *'
-  workflow_dispatch: # 允许手动点一下立即构建
+  workflow_dispatch:
     inputs:
       skip_if_unchanged:
-        description: '上游没变化时跳过（模拟定时触发的行为）'
+        description: '上游无变化时跳过'
         type: boolean
         default: false
   push:
     branches: [main]
-    # 只在定制内容或构建脚本变化时触发，避免机器人自己的提交再次触发形成回环
     paths: ['ips.txt', 'domains.txt', 'exclude.txt', 'build.py']
 
-# 并发保护：同一时间只允许一个构建，后来的排队等着，避免抢着提交被拒
 concurrency:
   group: daily-build
   cancel-in-progress: false
@@ -28,18 +24,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 检出仓库
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
 
-      - name: 准备 Python
-        uses: actions/setup-python@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
-      - name: 拉取上游并按需求生成
+      - name: 生成规则
         run: python3 build.py
         env:
-          # 定时触发时，上游没变化就直接收工；手动或改定制触发则一律重算
           SKIP_IF_UNCHANGED: ${{ github.event_name == 'schedule' || github.event.inputs.skip_if_unchanged == 'true' }}
 
       - name: 提交变更
@@ -48,14 +41,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
-            echo "本次无变化，跳过提交"
+            echo "无变化，跳过提交"
           else
             git commit -m "chore: daily update $(date -u +'%Y-%m-%d %H:%M UTC')"
             git pull --rebase origin main
             git push
           fi
 
-      - name: 刷新 jsDelivr 缓存
+      - name: 刷新缓存
         run: |
           for f in cn.rsc gfwlist.rsc VERSION.txt; do
             curl -s -m 30 "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@main/$f" || true
