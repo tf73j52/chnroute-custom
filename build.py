@@ -140,7 +140,7 @@ def is_blocked(domain: str, excl: set) -> bool:
 
 
 def build_gfw(text: str, custom_domains: list, exclude_domains: list) -> tuple:
-    cleaned = re.sub(r"\saddress-list=gfw_list", "", text)
+    cleaned = text
     lines, start, end, domains = parse_block(cleaned, "domainList")
     all_d = [d.strip().lower() for d in domains + custom_domains]
     excl = set(exclude_domains)
