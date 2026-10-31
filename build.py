@@ -177,20 +177,27 @@ def sort_domains(domains: list) -> list:
     return sorted(set(domains))
 
 
-def build_gfw(text: str, custom_domains: list) -> tuple:
+def build_gfw(text: str, custom_domains: list, exclude_domains: list) -> tuple:
     """上游 gfwlist_v7.rsc → gfwlist.rsc：并入自定义域名、去 gfw_list 标签、
-    去重、剔除被父域覆盖的子域、排序。"""
+    剔除 exclude.txt 域名（含其子域）、去重、剔除被父域覆盖的子域、排序。"""
     cleaned = re.sub(r"\saddress-list=gfw_list", "", text)
     lines, start, end, domains = parse_block(cleaned, "domainList")
     all_d = [d.strip().lower() for d in domains] + [d.strip().lower() for d in custom_domains]
-    final, n_dropped = strip_covered(sort_domains(all_d))
+    excl = set(exclude_domains)
+    kept = []
+    for d in all_d:
+        parts = d.split(".")
+        if not any(".".join(parts[i:]) in excl for i in range(len(parts) - 1)):
+            kept.append(d)
+    n_excluded = len(all_d) - len(kept)
+    final, n_dropped = strip_covered(sort_domains(kept))
     out = render(lines, start, end, final)
     out = re.sub(
         r'/log info "GFW domain list updated with \d+ domains"',
         f'/log info "GFW domain list updated with {len(final)} domains"',
         out,
     )
-    return out, len(final), n_dropped
+    return out, len(final), n_dropped, n_excluded
 
 
 def main() -> None:
@@ -212,7 +219,8 @@ def main() -> None:
 
     cn_out, raw_ip, n_ip = build_cn(cn_text, custom_ips, lan_nets)
     custom_domains = load_list(ROOT / "domains.txt")
-    gfw_out, n_domain, n_dropped = build_gfw(gfw_text, custom_domains)
+    exclude_domains = load_list(ROOT / "exclude.txt")
+    gfw_out, n_domain, n_dropped, n_excluded = build_gfw(gfw_text, custom_domains, exclude_domains)
 
     selfcheck(to_nets(re.findall(r'^\s*"([^"]+)"', cn_out, re.M)), n_domain, prev)
 
@@ -225,7 +233,7 @@ def main() -> None:
         f"upstream: {UPSTREAM}",
         f"upstream_sig: {sig}",
         f"cn_entries: {n_ip} (上游 {raw_ip} + 自定义 {len(custom_ips)} + 内网 {len(lan_nets)}，去重合并后)",
-        f"gfw_domains: {n_domain} (上游 + 自定义 {len(custom_domains)}，去重并剔除被父域覆盖的 {n_dropped} 条后)",
+        f"gfw_domains: {n_domain} (上游 + 自定义 {len(custom_domains)}，排除 exclude.txt {n_excluded} 条、去重并剔除被父域覆盖的 {n_dropped} 条后)",
     ]
     for name in ("cn.rsc", "gfwlist.rsc"):
         data = (ROOT / name).read_bytes()
