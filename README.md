@@ -7,7 +7,7 @@
 | 产物 | 说明 |
 |---|---|
 | `cn.rsc` | 上游国内段 + `ips.txt` 自定义段 + 内网段，列表名小写 `cn`，文件自带清空旧列表逻辑 |
-| `gfwlist.rsc` | 上游 gfw 域名 + `domains.txt` 自定义域名 − `exclude.txt` 排除域名，被父域覆盖的子域自动剔除 |
+| `gfwlist.rsc` | 上游 gfw 域名 + `domains.txt` 自定义域名 − `exclude.txt` 排除域名，被父域覆盖的子域自动剔除；FWD 记录带 `address-list=gfw_list`，域名解析出的 IP 自动写入防火墙地址列表 `gfw_list` |
 
 内网段（原 `lan.rsc`）已并入 `cn.rsc`，路由器只需导入这两个文件。
 
@@ -16,7 +16,7 @@
 | 文件 | 作用 |
 |---|---|
 | `ips.txt` | 并入 `cn` 的 IP 段，**直连**用。当前用于 WeChat / Apple 应用直连 |
-| `domains.txt` | 追加进 gfwlist 的域名，让其**走代理 DNS** 解析（只影响解析，流量走不走代理仍由 `cn` 列表决定） |
+| `domains.txt` | 追加进 gfwlist 的域名，让其**走代理 DNS** 解析，解析出的 IP 会写入 `gfw_list` 地址列表（流量走不走代理仍由 `cn` 列表决定） |
 | `exclude.txt` | 从 gfwlist 中**排除**的域名（含其子域），每行一个 |
 
 改完推送即自动构建生效；日常增删不需要碰 `build.py`。
