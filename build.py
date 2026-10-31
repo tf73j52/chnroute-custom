@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent
 MIN_CN_ENTRIES = 5000
 MIN_DOMAIN_ENTRIES = 3000
 MAX_CN_DROP_RATIO = 0.9  # 相对上一版最大跌幅，超过视为异常
-PRIVATE_NETS = ("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.0/8")
+PRIVATE_NETS = tuple(ipaddress.ip_network(x) for x in ("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.0/8"))
 
 IPNet = ipaddress.IPv4Network | ipaddress.IPv6Network
 
@@ -129,8 +129,7 @@ def selfcheck(cn_nets: list[IPNet], n_domain: int, prev: dict[str, str]) -> None
         errors.append(f"cn 从 {prev_cn} 跌至 {len(cn_nets)}（跌幅>{(1 - MAX_CN_DROP_RATIO):.0%}）")
     if n_domain < MIN_DOMAIN_ENTRIES:
         errors.append(f"域名仅 {n_domain} 个（<{MIN_DOMAIN_ENTRIES}）")
-    private = [ipaddress.ip_network(x) for x in PRIVATE_NETS]
-    missing = [str(x) for x in private if not any(x.subnet_of(n) for n in cn_nets)]
+    missing = [str(x) for x in PRIVATE_NETS if not any(x.subnet_of(n) for n in cn_nets)]
     if missing:
         errors.append(f"内网段丢失：{missing}")
     if errors:
