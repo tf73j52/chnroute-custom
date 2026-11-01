@@ -235,6 +235,7 @@
     "api.recaptcha.net";
     "api.shuaiapi.com";
     "api.steampowered.com";
+    "api.themoviedb.org";
     "apiary.io";
     "apigee.com";
     "apk.support";
@@ -3671,6 +3672,7 @@
     "torproject.org";
     "torrentgalaxy.to";
     "torrentkitty.tv";
+    "torrentleech.org";
     "torrentprivacy.com";
     "torrentproject.se";
     "torrenty.org";
@@ -4296,6 +4298,7 @@
     "youtubegaming.com";
     "youtubekids.com";
     "youversion.com";
+    "youversionapi.com";
     "youwin.com";
     "youxu.info";
     "yt.be";
@@ -4381,4 +4384,4 @@
 }
 
 /ip dns cache flush
-/log info "GFW domain list updated with 4369 domains"
+/log info "GFW domain list updated with 4372 domains"
