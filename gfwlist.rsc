@@ -24,6 +24,7 @@
     "18board.com";
     "18comic.org";
     "18comic.vip";
+    "18jtv.com";
     "18mh.net";
     "1984bbs.com";
     "1991way.com";
@@ -669,6 +670,7 @@
     "chenpokongvip.com";
     "cherrysave.com";
     "chhongbi.org";
+    "chigua.com";
     "chii.in";
     "china-mmm.net";
     "china-review.com.ua";
@@ -4384,4 +4386,4 @@
 }
 
 /ip dns cache flush
-/log info "GFW domain list updated with 4372 domains"
+/log info "GFW domain list updated with 4374 domains"
