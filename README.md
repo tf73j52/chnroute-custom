@@ -5,30 +5,30 @@
 ## 环境要求
 
 - Python 3.11+
-- 可访问 GitHub 与 jsDelivr
+- 可访问 GitHub
 
-## 安装步骤
+## 安装
 
 ```bash
 git clone https://github.com/tf73j52/chnroute-custom.git
 cd chnroute-custom
 ```
 
-## 核心调用示例
+## 构建
 
 ```bash
 python3 build.py
 ```
 
-产物：`cn.rsc`（国内段直连白名单）、`gfwlist.rsc`（被墙域名走代理 DNS，FWD 记录自带 `address-list=gfwlist`，解析 IP 自动写入防火墙 `gfwlist` 列表）、`VERSION.txt`（构建元数据）。
+产物：`cn.rsc`（国内段直连白名单）、`gfwlist.rsc`（被墙域名走代理 DNS，解析 IP 自动写入防火墙 `gfwlist` 列表）、`VERSION.txt`（构建元数据）。
 
-RouterOS 导入：
+## RouterOS 导入
 
 ```routeros
 :global dnsserver "proxy"
 :local logOpen [/system logging find disabled=no]
 /system logging disable [find]
-:foreach f in={"cn.rsc";"gfwlist.rsc"} do={ /tool fetch url=("https://cdn.jsdelivr.net/gh/tf73j52/chnroute-custom@main/" . $f) dst-path=$f duration=10s check-certificate=no; /import $f; /file remove [find name=$f] }
+:foreach f in={"cn.rsc";"gfwlist.rsc"} do={ /tool fetch url=("https://raw.githubusercontent.com/tf73j52/chnroute-custom/main/" . $f) dst-path=$f duration=10s check-certificate=no; /import $f; /file remove [find name=$f] }
 :foreach lid in=$logOpen do={ /system logging enable $lid }
 ```
 

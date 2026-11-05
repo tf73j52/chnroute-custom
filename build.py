@@ -1,203 +1,147 @@
 #!/usr/bin/env python3
-"""从上游 chnroute 拉取并合并本地定制项，产出 RouterOS 分流脚本。"""
-
-import hashlib
-import ipaddress
-import os
-import re
-import urllib.request
+import hashlib, ipaddress, os, re, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-UPSTREAM_RAW = "https://raw.githubusercontent.com/ruijzhan/chnroute/master"
-MIRRORS = [
-    UPSTREAM_RAW,
-    "https://cdn.jsdelivr.net/gh/ruijzhan/chnroute@master",
-]
-TIMEOUT = 120
+RAW = "https://raw.githubusercontent.com/ruijzhan/chnroute/master"
 ROOT = Path(__file__).resolve().parent
-
-# 自检阈值
-MIN_CN_ENTRIES = 5000
-MIN_DOMAIN_ENTRIES = 3000
-MAX_CN_DROP_RATIO = 0.9  # 相对上一版最大跌幅，超过视为异常
-PRIVATE_NETS = tuple(ipaddress.ip_network(x) for x in ("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.0/8"))
-
+MIN_CN, MIN_DOMAIN, MAX_DROP = 5000, 3000, 0.9
+PRIVATE = tuple(ipaddress.ip_network(x) for x in ("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.0/8"))
 IPNet = ipaddress.IPv4Network | ipaddress.IPv6Network
 
 
 def fetch(name: str) -> str:
-    """依次尝试镜像拉取上游文件，全部失败才终止。"""
-    last_error: Exception | None = None
-    for base in MIRRORS:
-        url = f"{base}/{name}"
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "chnroute-custom-build"})
-            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-                return resp.read().decode("utf-8")
-        except Exception as exc:  # 网络异常降级到下一个镜像
-            last_error = exc
-            print(f"[warn] {url}：{exc}", flush=True)
-    raise SystemExit(f"拉取 {name} 失败：{last_error}")
+    req = urllib.request.Request(f"{RAW}/{name}", headers={"User-Agent": "chnroute-custom-build"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        return r.read().decode()
 
 
-def load_list(path: Path) -> list[str]:
-    """读取定制文件：每行一条，忽略空行与 # 注释。"""
-    if not path.exists():
-        return []
-    return [
-        stripped
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if (stripped := line.strip()) and not stripped.startswith("#")
-    ]
+def load(path: Path) -> list[str]:
+    return [s for l in path.read_text(encoding="utf-8").splitlines() if (s := l.strip()) and not s.startswith("#")] if path.exists() else []
 
 
-def _locate_block(lines: list[str], var: str) -> tuple[int, int]:
-    """定位 :local {var} {...} 块，返回 (起始行, 结束行)。"""
-    try:
-        start = next(i for i, line in enumerate(lines) if line.strip().startswith(f":local {var}"))
-        end = next(i for i in range(start, len(lines)) if lines[i].strip() == "}")
-    except StopIteration:
-        raise SystemExit(f"上游结构变化：缺少 :local {var}") from None
+def locate(lines: list[str], var: str) -> tuple[int, int]:
+    start = next(i for i, l in enumerate(lines) if l.strip().startswith(f":local {var}"))
+    end = next(i for i in range(start, len(lines)) if lines[i].strip() == "}")
     return start, end
 
 
-def extract_items(text: str, var: str) -> list[str]:
-    """提取 :local {var} 块中的字符串元素。"""
+def items(text: str, var: str) -> list[str]:
     lines = text.splitlines()
-    start, end = _locate_block(lines, var)
-    return [m for line in lines[start:end] for m in re.findall(r'"([^"]+)"', line)]
+    s, e = locate(lines, var)
+    return [m for l in lines[s:e] for m in re.findall(r'"([^"]+)"', l)]
 
 
-def render_block(text: str, var: str, items: list[str]) -> str:
-    """用新元素列表重写 :local {var} 块，保持其余内容不变。"""
+def render(text: str, var: str, vals: list[str]) -> str:
     lines = text.splitlines()
-    start, end = _locate_block(lines, var)
-    body = [f'    "{item}";' for item in items]
-    return "\n".join(lines[: start + 1] + body + lines[end:]) + "\n"
+    s, e = locate(lines, var)
+    return "\n".join(lines[: s + 1] + [f'    "{v}";' for v in vals] + lines[e:]) + "\n"
 
 
-def to_nets(items: list[str], label: str = "网段") -> list[IPNet]:
-    """把字符串解析为网段对象，无效项告警并跳过。"""
-    nets: list[IPNet] = []
-    for raw in items:
+def nets(vals: list[str], label: str = "网段") -> list[IPNet]:
+    out: list[IPNet] = []
+    for raw in vals:
         try:
-            nets.append(ipaddress.ip_network(raw, strict=False))
+            out.append(ipaddress.ip_network(raw, strict=False))
         except ValueError:
             print(f"[warn] 忽略无效{label}：{raw}", flush=True)
-    return nets
+    return out
 
 
-def normalize(nets: list[IPNet]) -> list[IPNet]:
-    """合并互相包含/相邻的网段并数值排序。"""
-    return sorted(ipaddress.collapse_addresses(nets), key=lambda n: (int(n.network_address), n.prefixlen))
+def normalize(ns: list[IPNet]) -> list[IPNet]:
+    return sorted(ipaddress.collapse_addresses(ns), key=lambda n: (int(n.network_address), n.prefixlen))
 
 
-def build_cn(text: str, custom_ips: list[str], lan_nets: list[IPNet]) -> tuple[str, int, list[IPNet]]:
+def build_cn(text: str, custom: list[str], lan: list[IPNet]) -> tuple[str, int, list[IPNet]]:
     out = text.replace("list=CN", "list=cn")
-    nets = to_nets(extract_items(out, "ipList"))
-    raw_count = len(nets)
-    nets += to_nets(custom_ips, label="自定义段")
-    nets += lan_nets
-    final = normalize(nets)
-    return render_block(out, "ipList", [str(n) for n in final]), raw_count, final
+    ns = nets(items(out, "ipList"))
+    raw = len(ns)
+    final = normalize(ns + nets(custom, "自定义段") + lan)
+    return render(out, "ipList", [str(n) for n in final]), raw, final
 
 
-def read_prev_meta() -> dict[str, str]:
-    path = ROOT / "VERSION.txt"
-    if not path.exists():
+def prev_meta() -> dict[str, str]:
+    p = ROOT / "VERSION.txt"
+    if not p.exists():
         return {}
     meta: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in p.read_text(encoding="utf-8").splitlines():
         if ":" in line:
-            key, _, value = line.partition(":")
-            meta[key.strip()] = value.strip()
+            k, _, v = line.partition(":")
+            meta[k.strip()] = v.strip()
     return meta
 
 
 def prev_int(meta: dict[str, str], key: str) -> int:
-    match = re.search(r"\d+", meta.get(key, ""))
-    return int(match.group()) if match else 0
+    m = re.search(r"\d+", meta.get(key, ""))
+    return int(m.group()) if m else 0
 
 
-def selfcheck(cn_nets: list[IPNet], n_domain: int, prev: dict[str, str]) -> None:
-    errors: list[str] = []
-    if len(cn_nets) < MIN_CN_ENTRIES:
-        errors.append(f"cn 仅 {len(cn_nets)} 条（<{MIN_CN_ENTRIES}）")
-    prev_cn = prev_int(prev, "cn_entries")
-    if prev_cn and len(cn_nets) < prev_cn * MAX_CN_DROP_RATIO:
-        errors.append(f"cn 从 {prev_cn} 跌至 {len(cn_nets)}（跌幅>{(1 - MAX_CN_DROP_RATIO):.0%}）")
-    if n_domain < MIN_DOMAIN_ENTRIES:
-        errors.append(f"域名仅 {n_domain} 个（<{MIN_DOMAIN_ENTRIES}）")
-    missing = [str(x) for x in PRIVATE_NETS if not any(x.subnet_of(n) for n in cn_nets)]
+def check(ns: list[IPNet], n_dom: int, prev: dict[str, str]) -> None:
+    errs: list[str] = []
+    if len(ns) < MIN_CN:
+        errs.append(f"cn 仅 {len(ns)} 条（<{MIN_CN}）")
+    pc = prev_int(prev, "cn_entries")
+    if pc and len(ns) < pc * MAX_DROP:
+        errs.append(f"cn 从 {pc} 跌至 {len(ns)}（跌幅>{(1 - MAX_DROP):.0%}）")
+    if n_dom < MIN_DOMAIN:
+        errs.append(f"域名仅 {n_dom} 个（<{MIN_DOMAIN}）")
+    missing = [str(x) for x in PRIVATE if not any(x.subnet_of(n) for n in ns)]
     if missing:
-        errors.append(f"内网段丢失：{missing}")
-    if errors:
-        raise SystemExit("自检未通过：\n- " + "\n- ".join(errors))
-    print(f"自检通过：cn {len(cn_nets)} 条，域名 {n_domain} 个", flush=True)
+        errs.append(f"内网段丢失：{missing}")
+    if errs:
+        raise SystemExit("自检未通过：\n- " + "\n- ".join(errs))
+    print(f"自检通过：cn {len(ns)} 条，域名 {n_dom} 个", flush=True)
 
 
-def is_listed(domain: str, names: set[str], *, include_self: bool) -> bool:
-    """判断 domain 自身（可选）或其任一父域名是否在 names 中。"""
-    parts = domain.split(".")
-    start = 0 if include_self else 1
+def is_listed(dom: str, names: set[str], *, self_: bool) -> bool:
+    parts = dom.split(".")
+    start = 0 if self_ else 1
     return any(".".join(parts[i:]) in names for i in range(start, len(parts) - 1))
 
 
-def strip_covered(domains: list[str]) -> tuple[list[str], int]:
-    """剔除已被父域名覆盖的子域，返回 (保留项, 剔除数)。"""
-    domset = set(domains)
-    kept = [d for d in domains if not is_listed(d, domset, include_self=False)]
-    return kept, len(domains) - len(kept)
+def strip_covered(doms: list[str]) -> tuple[list[str], int]:
+    dset = set(doms)
+    kept = [d for d in doms if not is_listed(d, dset, self_=False)]
+    return kept, len(doms) - len(kept)
 
 
-def build_gfw(text: str, custom_domains: list[str], exclude_domains: list[str]) -> tuple[str, int, int, int]:
-    cleaned = text.replace("address-list=gfw_list", "address-list=gfwlist")
-    domains = extract_items(cleaned, "domainList")
-    all_domains = [d.strip().lower() for d in domains + custom_domains]
-    exclude = set(exclude_domains)
-    kept = [d for d in all_domains if not is_listed(d, exclude, include_self=True)]
-    n_excluded = len(all_domains) - len(kept)
-    final, n_dropped = strip_covered(sorted(set(kept)))
-    out = render_block(cleaned, "domainList", final)
-    out = re.sub(
-        r'/log info "GFW domain list updated with \d+ domains"',
-        f'/log info "GFW domain list updated with {len(final)} domains"',
-        out,
-    )
-    return out, len(final), n_dropped, n_excluded
+def build_gfw(text: str, custom: list[str], exclude: list[str]) -> tuple[str, int, int, int]:
+    out = text.replace("address-list=gfw_list", "address-list=gfwlist")
+    doms = items(out, "domainList")
+    all_d = [d.strip().lower() for d in doms + custom]
+    ex = set(exclude)
+    kept = [d for d in all_d if not is_listed(d, ex, self_=True)]
+    n_ex = len(all_d) - len(kept)
+    final, n_drop = strip_covered(sorted(set(kept)))
+    out = render(out, "domainList", final)
+    out = re.sub(r'/log info "GFW domain list updated with \d+ domains"', f'/log info "GFW domain list updated with {len(final)} domains"', out)
+    return out, len(final), n_drop, n_ex
 
 
 def main() -> None:
-    custom_ips = load_list(ROOT / "ips.txt")
-    cn_text = fetch("CN.rsc")
-    lan_text = fetch("LAN.rsc")
-    gfw_text = fetch("gfwlist_v7.rsc")
-
-    sig = hashlib.sha256((cn_text + lan_text + gfw_text).encode()).hexdigest()[:16]
-    prev = read_prev_meta()
+    custom_ips = load(ROOT / "ips.txt")
+    cn, lan, gfw = fetch("CN.rsc"), fetch("LAN.rsc"), fetch("gfwlist_v7.rsc")
+    sig = hashlib.sha256((cn + lan + gfw).encode()).hexdigest()[:16]
+    prev = prev_meta()
     if os.environ.get("SKIP_IF_UNCHANGED", "").lower() == "true" and prev.get("upstream_sig") == sig:
         print(f"上游无变化（{sig}），跳过构建", flush=True)
         return
-
-    lan_nets = to_nets(extract_items(lan_text, "lanIps"))
-    cn_out, raw_ip, cn_nets = build_cn(cn_text, custom_ips, lan_nets)
-    custom_domains = load_list(ROOT / "domains.txt")
-    exclude_domains = load_list(ROOT / "exclude.txt")
-    gfw_out, n_domain, n_dropped, n_excluded = build_gfw(gfw_text, custom_domains, exclude_domains)
-
-    selfcheck(cn_nets, n_domain, prev)
-
+    lan_nets = nets(items(lan, "lanIps"))
+    cn_out, raw_ip, cn_nets = build_cn(cn, custom_ips, lan_nets)
+    custom_dom = load(ROOT / "domains.txt")
+    ex_dom = load(ROOT / "exclude.txt")
+    gfw_out, n_dom, n_drop, n_ex = build_gfw(gfw, custom_dom, ex_dom)
+    check(cn_nets, n_dom, prev)
     (ROOT / "cn.rsc").write_text(cn_out, encoding="utf-8")
     (ROOT / "gfwlist.rsc").write_text(gfw_out, encoding="utf-8")
-
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     meta = [
         f"build_time: {now}",
-        f"upstream: {UPSTREAM_RAW}",
+        f"upstream: {RAW}",
         f"upstream_sig: {sig}",
         f"cn_entries: {len(cn_nets)}（上游 {raw_ip} + 自定义 {len(custom_ips)} + 内网 {len(lan_nets)}）",
-        f"gfw_domains: {n_domain}（上游+自定义 {len(custom_domains)}，排除 {n_excluded}，剔除子域 {n_dropped}）",
+        f"gfw_domains: {n_dom}（上游+自定义 {len(custom_dom)}，排除 {n_ex}，剔除子域 {n_drop}）",
     ]
     for name in ("cn.rsc", "gfwlist.rsc"):
         data = (ROOT / name).read_bytes()
