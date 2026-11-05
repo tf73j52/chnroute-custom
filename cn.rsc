@@ -1,4 +1,4 @@
-/log info "Loading CN ipv4 address list"
+/log info "Loading cn ipv4 address list"
 /ip firewall address-list remove [/ip firewall address-list find list=cn]
 /ip firewall address-list
 :local ipList {
