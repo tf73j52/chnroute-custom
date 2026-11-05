@@ -17,7 +17,9 @@ def fetch(name: str) -> str:
 
 
 def load(path: Path) -> list[str]:
-    return [s for l in path.read_text(encoding="utf-8").splitlines() if (s := l.strip()) and not s.startswith("#")] if path.exists() else []
+    if not path.exists():
+        return []
+    return [s for l in path.read_text(encoding="utf-8").splitlines() if (s := l.split("#", 1)[0].strip())]
 
 
 def block(text: str, var: str) -> tuple[list[str], int, int]:
@@ -91,13 +93,12 @@ def is_listed(dom: str, names: set[str], *, self_: bool) -> bool:
 def build_gfw(text: str, custom: list[str], exclude: list[str]) -> tuple[str, int, int, int]:
     out = text.replace("address-list=gfw_list", "address-list=gfwlist")
     all_d = [d.strip().lower() for d in items(out, "domainList") + custom]
-    ex = set(exclude)
+    ex = {d.lower() for d in exclude}
     kept = [d for d in all_d if not is_listed(d, ex, self_=True)]
     n_ex = len(all_d) - len(kept)
-    unique = sorted(set(kept))
-    dset = set(unique)
-    final = [d for d in unique if not is_listed(d, dset, self_=False)]
-    n_drop = len(unique) - len(final)
+    dset = set(kept)
+    final = [d for d in sorted(dset) if not is_listed(d, dset, self_=False)]
+    n_drop = len(dset) - len(final)
     out = render(out, "domainList", final)
     out = re.sub(r'/log info "GFW domain list updated with \d+ domains"', f'/log info "GFW domain list updated with {len(final)} domains"', out)
     return out, len(final), n_drop, n_ex
