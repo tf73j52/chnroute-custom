@@ -11,8 +11,8 @@ from pathlib import Path
 
 UPSTREAM_RAW = "https://raw.githubusercontent.com/ruijzhan/chnroute/master"
 MIRRORS = [
-    "https://cdn.jsdelivr.net/gh/ruijzhan/chnroute@master",
     UPSTREAM_RAW,
+    "https://cdn.jsdelivr.net/gh/ruijzhan/chnroute@master",
 ]
 TIMEOUT = 120
 ROOT = Path(__file__).resolve().parent
