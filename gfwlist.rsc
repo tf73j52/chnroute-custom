@@ -1,4 +1,4 @@
-# RouterOS script for GFW domain list - Version v7
+# RouterOS script for gfw domain list - Version v7
 # Source: https://github.com/ruijzhan/chnroute
 
 :global dnsserver
