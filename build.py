@@ -20,21 +20,20 @@ def load(path: Path) -> list[str]:
     return [s for l in path.read_text(encoding="utf-8").splitlines() if (s := l.strip()) and not s.startswith("#")] if path.exists() else []
 
 
-def locate(lines: list[str], var: str) -> tuple[int, int]:
-    start = next(i for i, l in enumerate(lines) if l.strip().startswith(f":local {var}"))
-    end = next(i for i in range(start, len(lines)) if lines[i].strip() == "}")
-    return start, end
+def block(text: str, var: str) -> tuple[list[str], int, int]:
+    lines = text.splitlines()
+    s = next(i for i, l in enumerate(lines) if l.strip().startswith(f":local {var}"))
+    e = next(i for i in range(s, len(lines)) if lines[i].strip() == "}")
+    return lines, s, e
 
 
 def items(text: str, var: str) -> list[str]:
-    lines = text.splitlines()
-    s, e = locate(lines, var)
+    lines, s, e = block(text, var)
     return [m for l in lines[s:e] for m in re.findall(r'"([^"]+)"', l)]
 
 
 def render(text: str, var: str, vals: list[str]) -> str:
-    lines = text.splitlines()
-    s, e = locate(lines, var)
+    lines, s, e = block(text, var)
     return "\n".join(lines[: s + 1] + [f'    "{v}";' for v in vals] + lines[e:]) + "\n"
 
 
@@ -60,34 +59,23 @@ def build_cn(text: str, custom: list[str], lan: list[IPNet]) -> tuple[str, int, 
     return render(out, "ipList", [str(n) for n in final]), raw, final
 
 
-def prev_meta() -> dict[str, str]:
+def prev() -> dict[str, str]:
     p = ROOT / "VERSION.txt"
     if not p.exists():
         return {}
-    meta: dict[str, str] = {}
-    for line in p.read_text(encoding="utf-8").splitlines():
-        if ":" in line:
-            k, _, v = line.partition(":")
-            meta[k.strip()] = v.strip()
-    return meta
+    return {k.strip(): v.strip() for l in p.read_text(encoding="utf-8").splitlines() if ":" in l for k, _, v in [l.partition(":")]}
 
 
-def prev_int(meta: dict[str, str], key: str) -> int:
-    m = re.search(r"\d+", meta.get(key, ""))
-    return int(m.group()) if m else 0
-
-
-def check(ns: list[IPNet], n_dom: int, prev: dict[str, str]) -> None:
+def check(ns: list[IPNet], n_dom: int, prev_m: dict[str, str]) -> None:
     errs: list[str] = []
     if len(ns) < MIN_CN:
         errs.append(f"cn 仅 {len(ns)} 条（<{MIN_CN}）")
-    pc = prev_int(prev, "cn_entries")
-    if pc and len(ns) < pc * MAX_DROP:
-        errs.append(f"cn 从 {pc} 跌至 {len(ns)}（跌幅>{(1 - MAX_DROP):.0%}）")
+    m = re.search(r"\d+", prev_m.get("cn_entries", ""))
+    if m and len(ns) < int(m.group()) * MAX_DROP:
+        errs.append(f"cn 从 {m.group()} 跌至 {len(ns)}（跌幅>{(1 - MAX_DROP):.0%}）")
     if n_dom < MIN_DOMAIN:
         errs.append(f"域名仅 {n_dom} 个（<{MIN_DOMAIN}）")
-    missing = [str(x) for x in PRIVATE if not any(x.subnet_of(n) for n in ns)]
-    if missing:
+    if missing := [str(x) for x in PRIVATE if not any(x.subnet_of(n) for n in ns)]:
         errs.append(f"内网段丢失：{missing}")
     if errs:
         raise SystemExit("自检未通过：\n- " + "\n- ".join(errs))
@@ -100,20 +88,16 @@ def is_listed(dom: str, names: set[str], *, self_: bool) -> bool:
     return any(".".join(parts[i:]) in names for i in range(start, len(parts) - 1))
 
 
-def strip_covered(doms: list[str]) -> tuple[list[str], int]:
-    dset = set(doms)
-    kept = [d for d in doms if not is_listed(d, dset, self_=False)]
-    return kept, len(doms) - len(kept)
-
-
 def build_gfw(text: str, custom: list[str], exclude: list[str]) -> tuple[str, int, int, int]:
     out = text.replace("address-list=gfw_list", "address-list=gfwlist")
-    doms = items(out, "domainList")
-    all_d = [d.strip().lower() for d in doms + custom]
+    all_d = [d.strip().lower() for d in items(out, "domainList") + custom]
     ex = set(exclude)
     kept = [d for d in all_d if not is_listed(d, ex, self_=True)]
     n_ex = len(all_d) - len(kept)
-    final, n_drop = strip_covered(sorted(set(kept)))
+    unique = sorted(set(kept))
+    dset = set(unique)
+    final = [d for d in unique if not is_listed(d, dset, self_=False)]
+    n_drop = len(unique) - len(final)
     out = render(out, "domainList", final)
     out = re.sub(r'/log info "GFW domain list updated with \d+ domains"', f'/log info "GFW domain list updated with {len(final)} domains"', out)
     return out, len(final), n_drop, n_ex
@@ -123,8 +107,8 @@ def main() -> None:
     custom_ips = load(ROOT / "ips.txt")
     cn, lan, gfw = fetch("CN.rsc"), fetch("LAN.rsc"), fetch("gfwlist_v7.rsc")
     sig = hashlib.sha256((cn + lan + gfw).encode()).hexdigest()[:16]
-    prev = prev_meta()
-    if os.environ.get("SKIP_IF_UNCHANGED", "").lower() == "true" and prev.get("upstream_sig") == sig:
+    prev_m = prev()
+    if os.environ.get("SKIP_IF_UNCHANGED", "").lower() == "true" and prev_m.get("upstream_sig") == sig:
         print(f"上游无变化（{sig}），跳过构建", flush=True)
         return
     lan_nets = nets(items(lan, "lanIps"))
@@ -132,22 +116,20 @@ def main() -> None:
     custom_dom = load(ROOT / "domains.txt")
     ex_dom = load(ROOT / "exclude.txt")
     gfw_out, n_dom, n_drop, n_ex = build_gfw(gfw, custom_dom, ex_dom)
-    check(cn_nets, n_dom, prev)
+    check(cn_nets, n_dom, prev_m)
     (ROOT / "cn.rsc").write_text(cn_out, encoding="utf-8")
     (ROOT / "gfwlist.rsc").write_text(gfw_out, encoding="utf-8")
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    meta = [
+    meta = "\n".join([
         f"build_time: {now}",
         f"upstream: {RAW}",
         f"upstream_sig: {sig}",
         f"cn_entries: {len(cn_nets)}（上游 {raw_ip} + 自定义 {len(custom_ips)} + 内网 {len(lan_nets)}）",
         f"gfw_domains: {n_dom}（上游+自定义 {len(custom_dom)}，排除 {n_ex}，剔除子域 {n_drop}）",
-    ]
-    for name in ("cn.rsc", "gfwlist.rsc"):
-        data = (ROOT / name).read_bytes()
-        meta.append(f"{name}: {len(data)} bytes, sha1={hashlib.sha1(data).hexdigest()}")
-    (ROOT / "VERSION.txt").write_text("\n".join(meta) + "\n", encoding="utf-8")
-    print("\n".join(meta))
+        *[f"{name}: {len(data := (ROOT / name).read_bytes())} bytes, sha1={hashlib.sha1(data).hexdigest()}" for name in ("cn.rsc", "gfwlist.rsc")],
+    ]) + "\n"
+    (ROOT / "VERSION.txt").write_text(meta, encoding="utf-8")
+    print(meta, end="")
 
 
 if __name__ == "__main__":
