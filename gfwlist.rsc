@@ -2373,7 +2373,6 @@
     "matters.news";
     "matters.town";
     "mattwilcox.net";
-    "maven.neoforged.net";
     "mcadforums.com";
     "mcaf.ee";
     "mceindex.com";
@@ -2581,6 +2580,7 @@
     "nekoslovakia.net";
     "neo-miracle.com";
     "neodb.social";
+    "neoforged.net";
     "neowin.net";
     "nephobox.com";
     "netalert.me";
