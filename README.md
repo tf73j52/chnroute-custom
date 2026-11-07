@@ -25,7 +25,11 @@ python3 build.py
 ## RouterOS 导入
 
 ```routeros
-:global dnsserver "proxy" :local logOpen [ /system  logging find disabled=no] /system  logging disable [find] :foreach f in={"cn.rsc";"gfwlist.rsc"} do={  /tool  fetch url=("https://raw.githubusercontent.com/tf73j52/chnroute-custom/main/" . $f) dst-path=$f duration=10s check-certificate=no } :foreach f in={"cn.rsc";"gfwlist.rsc"} do={  /import  $f;  /file  remove [find name=$f] } :foreach lid in=$logOpen do={  /system  logging enable $lid }
+:global dnsserver "proxy"
+:local logOpen [/system logging find disabled=no]
+/system logging disable [find]
+:foreach f in={"cn.rsc";"gfwlist.rsc"} do={ /tool fetch url=("https://raw.githubusercontent.com/tf73j52/chnroute-custom/main/" . $f) dst-path=$f duration=10s check-certificate=no; /import $f; /file remove [find name=$f] }
+:foreach lid in=$logOpen do={ /system logging enable $lid }
 ```
 
 > `dnsserver` 需指向真实存在的代理 DNS（IP 或同名 forwarder）；日志三行需整段粘贴，避免导入上万条记录时刷屏。
