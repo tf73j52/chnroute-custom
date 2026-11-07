@@ -1,4 +1,4 @@
-build_time: 2026-11-06 21:11:21 UTC
+build_time: 2026-11-07 15:21:51 UTC
 upstream: https://raw.githubusercontent.com/ruijzhan/chnroute/master
 upstream_sig: cb00b03863a24608
 cn_entries: 7812（上游 7944 + 自定义 16 + 内网 15）
