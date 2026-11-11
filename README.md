@@ -24,6 +24,8 @@ python3 build.py
 
 ## RouterOS 导入
 
+定时拉取并导入 `cn.rsc` / `gfwlist.rsc`，导入时静默日志、结束后恢复；`$dnsserver` 需指向代理 DNS。
+
 ```routeros
 :global dnsserver "proxy"
 :local logOpen [/system logging find disabled=no]
