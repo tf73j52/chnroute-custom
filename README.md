@@ -46,4 +46,5 @@ python3 build.py
 }
 
 :foreach lid in=$logOpen do={ /system logging enable $lid }
+
 ```
