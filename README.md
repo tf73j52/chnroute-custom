@@ -25,5 +25,12 @@ python3 build.py
 ## RouterOS 导入
 
 ```routeros
-:if ([ /ping  192.168.0.1 count=5]=0) do={   :local p [:rndnum from=49152 to=65535]   :do { /interface  wireguard set wireguard1 listen-port=$p /ip  firewall filter set (([ /ip  firewall filter find]->5)) dst-port=$p /file  set [ /file  find name="wgport.txt"] contents=[:tostr $p]     :log warning ("wireguard1 port changed to: " . $p)   } on-error={     :log error "wireguard1 update failed"   } }
+:if ([ /ping  192.168.0.1 count=5]=0) do={
+  :local p [:rndnum from=49152 to=65535]
+  :do { /interface  wireguard set wireguard1 listen-port=$p /ip  firewall filter set (([ /ip  firewall filter find]->5)) dst-port=$p /file  set [ /file  find name="wgport.txt"] contents=[:tostr $p]
+    :log warning ("wireguard1 port changed to: " . $p)
+  } on-error={
+    :log error "wireguard1 update failed"
+  }
+}
 ```
