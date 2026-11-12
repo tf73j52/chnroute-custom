@@ -28,25 +28,23 @@ python3 build.py
 
 ```routeros
 :global dnsserver "proxy"
-:local logOpen [/system logging find disabled=no]
+:local logOpen [ /system  logging find disabled=no]
 
 :do {
-    /system logging disable [find]
+    /system  logging disable [find]
 
     :foreach f in={"cn.rsc";"gfwlist.rsc"} do={
-        /tool fetch \
+        /tool  fetch \
             url=("https://raw.githubusercontent.com/tf73j52/chnroute-custom/main/" . $f) \
             dst-path=$f
     }
 
     :foreach f in={"cn.rsc";"gfwlist.rsc"} do={
-        /import $f
-        /file remove [find name=$f]
+        /import  file-name=$f
+        /file  remove [find name=$f]
     }
-} on-error={
-    :foreach lid in=$logOpen do={ /system logging enable $lid }
-}
+} on-error={ }
 
-:foreach lid in=$logOpen do={ /system logging enable $lid }
+:foreach lid in=$logOpen do={ /system  logging enable $lid }
 
 ```
