@@ -28,25 +28,41 @@ python3 build.py
 
 ```routeros
 :global dnsserver "proxy"
+:local  files     { "cn.rsc"; "gfwlist.rsc" }
 :local  logopen   [ /system logging find disabled=no ]
+:local  cur       ""
+:local  err       false
 
 :do {
     /system logging disable [ find ]
 
-    :foreach f in={ "cn.rsc"; "gfwlist.rsc" } do={
+    :foreach f in=$files do={
+        :set cur ("fetch " . $f)
         /tool fetch \
             url=("https://raw.githubusercontent.com/tf73j52/chnroute-custom/main/" . $f) \
             dst-path=$f
     }
 
-    :foreach f in={ "cn.rsc"; "gfwlist.rsc" } do={
+    :foreach f in=$files do={
+        :set cur ("import " . $f)
         /import file-name=$f
         /file remove [ find name=$f ]
     }
-} on-error={ }
+} on-error={
+    :set err true
+    :foreach f in=$files do={
+        /file remove [ find name=$f ]
+    }
+}
 
 :foreach lid in=$logopen do={
     /system logging enable $lid
+}
+
+:if ($err) do={
+    :log error ("[cn+gfwlist] update failed: " . $cur)
+} else={
+    :log warning "[cn+gfwlist] update succeeded"
 }
 
 ```
