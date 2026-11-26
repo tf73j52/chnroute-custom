@@ -60,9 +60,9 @@ python3 build.py
 }
 
 :if ($err) do={
-    :log error ("[cn+gfwlist] update failed: " . $cur)
+    :log error ("[cn/gfwlist] update failed: " . $cur)
 } else={
-    :log warning "[cn+gfwlist] update succeeded"
+    :log warning "[cn/gfwlist] update succeeded"
 }
 
 ```
