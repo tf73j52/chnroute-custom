@@ -34,14 +34,14 @@ python3 build.py
 :local  err       false
 
 :do {
-    /system logging disable [ find ]
-
     :foreach f in=$files do={
         :set cur ("fetch " . $f)
         /tool fetch \
             url=("https://raw.githubusercontent.com/tf73j52/chnroute-custom/main/" . $f) \
             dst-path=$f
     }
+
+    /system logging disable [ find ]
 
     :foreach f in=$files do={
         :set cur ("import " . $f)
