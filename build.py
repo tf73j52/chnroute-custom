@@ -6,7 +6,6 @@ from pathlib import Path
 RAW = "https://raw.githubusercontent.com/ruijzhan/chnroute/master"
 ROOT = Path(__file__).resolve().parent
 MIN_CN, MIN_DOMAIN, MAX_DROP = 5000, 3000, 0.9
-PRIVATE = tuple(ipaddress.ip_network(x) for x in ("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.0/8"))
 IPNet = ipaddress.IPv4Network | ipaddress.IPv6Network
 
 
@@ -53,11 +52,11 @@ def normalize(ns: list[IPNet]) -> list[IPNet]:
     return sorted(ipaddress.collapse_addresses(ns), key=lambda n: (int(n.network_address), n.prefixlen))
 
 
-def build_cn(text: str, custom: list[str], lan: list[IPNet]) -> tuple[str, int, list[IPNet]]:
+def build_cn(text: str, custom: list[str]) -> tuple[str, int, list[IPNet]]:
     out = text.replace("list=CN", "list=cn")
     ns = nets(items(out, "ipList"))
     raw = len(ns)
-    final = normalize(ns + nets(custom, "自定义段") + lan)
+    final = normalize(ns + nets(custom, "自定义段"))
     return render(out, "ipList", [str(n) for n in final]), raw, final
 
 
@@ -77,8 +76,6 @@ def check(ns: list[IPNet], n_dom: int, prev_m: dict[str, str]) -> None:
         errs.append(f"cn 从 {m.group()} 跌至 {len(ns)}（跌幅>{(1 - MAX_DROP):.0%}）")
     if n_dom < MIN_DOMAIN:
         errs.append(f"域名仅 {n_dom} 个（<{MIN_DOMAIN}）")
-    if missing := [str(x) for x in PRIVATE if not any(x.subnet_of(n) for n in ns)]:
-        errs.append(f"内网段丢失：{missing}")
     if errs:
         raise SystemExit("自检未通过：\n- " + "\n- ".join(errs))
     print(f"自检通过：cn {len(ns)} 条，域名 {n_dom} 个", flush=True)
@@ -106,14 +103,13 @@ def build_gfw(text: str, custom: list[str], exclude: list[str]) -> tuple[str, in
 
 def main() -> None:
     custom_ips = load(ROOT / "ips.txt")
-    cn, lan, gfw = fetch("CN.rsc"), fetch("LAN.rsc"), fetch("gfwlist_v7.rsc")
-    sig = hashlib.sha256((cn + lan + gfw).encode()).hexdigest()[:16]
+    cn, gfw = fetch("CN.rsc"), fetch("gfwlist_v7.rsc")
+    sig = hashlib.sha256((cn + gfw).encode()).hexdigest()[:16]
     prev_m = prev()
     if os.environ.get("SKIP_IF_UNCHANGED", "").lower() == "true" and prev_m.get("upstream_sig") == sig:
         print(f"上游无变化（{sig}），跳过构建", flush=True)
         return
-    lan_nets = nets(items(lan, "lanIps"))
-    cn_out, raw_ip, cn_nets = build_cn(cn, custom_ips, lan_nets)
+    cn_out, raw_ip, cn_nets = build_cn(cn, custom_ips)
     custom_dom = load(ROOT / "domains.txt")
     ex_dom = load(ROOT / "exclude.txt")
     gfw_out, n_dom, n_drop, n_ex = build_gfw(gfw, custom_dom, ex_dom)
@@ -125,7 +121,7 @@ def main() -> None:
         f"build_time: {now}",
         f"upstream: {RAW}",
         f"upstream_sig: {sig}",
-        f"cn_entries: {len(cn_nets)}（上游 {raw_ip} + 自定义 {len(custom_ips)} + 内网 {len(lan_nets)}）",
+        f"cn_entries: {len(cn_nets)}（上游 {raw_ip} + 自定义 {len(custom_ips)}）",
         f"gfw_domains: {n_dom}（上游+自定义 {len(custom_dom)}，排除 {n_ex}，剔除子域 {n_drop}）",
         *[f"{name}: {len(data := (ROOT / name).read_bytes())} bytes, sha1={hashlib.sha1(data).hexdigest()}" for name in ("cn.rsc", "gfwlist.rsc")],
     ]) + "\n"

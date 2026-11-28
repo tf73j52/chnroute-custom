@@ -1,7 +1,7 @@
-build_time: 2026-11-27 00:12:28 UTC
+build_time: 2026-11-28 08:27:44 UTC
 upstream: https://raw.githubusercontent.com/ruijzhan/chnroute/master
-upstream_sig: 0b4148e3be60cfb1
-cn_entries: 7789（上游 7922 + 自定义 15 + 内网 15）
-gfw_domains: 4404（上游+自定义 5，排除 0，剔除子域 20）
-cn.rsc: 177682 bytes, sha1=86df3ff8ad073fe90a38fd4f47f324cbc7d9e410
-gfwlist.rsc: 90301 bytes, sha1=88e1e496fc8ebd19894e26780319ab4bbf07be76
+upstream_sig: 5053973490ae109e
+cn_entries: 7775（上游 7922 + 自定义 15）
+gfw_domains: 4407（上游+自定义 5，排除 0，剔除子域 20）
+cn.rsc: 177395 bytes, sha1=f661b05bf1b476e647bd71f5606ab91308cbdd82
+gfwlist.rsc: 90357 bytes, sha1=6883eb2b5e210e1c2a5360409c644c2a912750ed
