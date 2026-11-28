@@ -24,11 +24,11 @@ python3 build.py
 
 ## RouterOS 导入
 
-定时拉取并导入 `cn.rsc` / `gfwlist.rsc` / `lan.rsc`，导入时静默日志、结束后恢复；`$dnsserver` 需指向代理 DNS。其中 `lan.rsc` 会把内网/保留网段写入 `LAN` 地址列表（`cn.rsc` 已不再包含内网段）。
+定时拉取并导入 `cn.rsc` / `gfwlist.rsc`，导入时静默日志、结束后恢复；`$dnsserver` 需指向代理 DNS。内网/保留网段已不再并入 `cn.rsc`，清单见 `local.txt`（每行一个网段，按需自行使用）。
 
 ```routeros
 :global dnsserver "proxy"
-:local  files     { "cn.rsc"; "gfwlist.rsc"; "lan.rsc" }
+:local  files     { "cn.rsc"; "gfwlist.rsc" }
 :local  logopen   [ /system logging find disabled=no ]
 :local  cur       ""
 :local  err       false
