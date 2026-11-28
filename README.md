@@ -24,7 +24,7 @@ python3 build.py
 
 ## RouterOS 导入
 
-定时拉取并导入 `cn.rsc` / `gfwlist.rsc`，导入时静默日志、结束后恢复；`$dnsserver` 需指向代理 DNS。内网/保留网段已不再并入 `cn.rsc`，清单见 `local.txt`（每行一个网段，按需自行使用）。
+定时拉取并导入 cn.rsc / gfwlist.rsc，导入时静默日志、结束后恢复；$dnsserver 需指向代理 DNS。内网/保留网段不并入 cn.rsc，清单见 local.txt（每行一个网段，按需自行使用）。
 
 ```routeros
 :global dnsserver "proxy"
